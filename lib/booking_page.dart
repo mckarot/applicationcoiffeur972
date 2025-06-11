@@ -5,6 +5,7 @@ import 'package:soifapp/models/haircut_service.dart';
 import 'package:soifapp/planning_page.dart'; // Importer la nouvelle page Planning
 import 'package:soifapp/salon_location_page.dart'; // Importer la page Localisation
 import 'package:soifapp/settings_page.dart'; // Importer la page Paramètres
+import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
 
 import 'package:soifapp/select_service_page.dart'; // Importer la nouvelle page de sélection
@@ -12,6 +13,7 @@ import 'package:soifapp/select_service_page.dart'; // Importer la nouvelle page 
 // Classe pour représenter un coiffeur avec plus de détails
 class Coiffeur {
   final String id;
+
   final String name;
   final IconData icon;
   final Color color;
@@ -387,8 +389,14 @@ class _BookingPageState extends State<BookingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Réservation de Créneau'),
+        title: const Text('Réservation'),
         // Les couleurs de l'AppBar sont maintenant gérées par AppBarTheme dans main.dart
+        actions: [
+          const LogoutButton(), // Utilisation du widget refactorisé
+        ],
+        // Si vous voulez un bouton de retour standard qui n'est pas lié à la déconnexion,
+        // Flutter l'ajoute automatiquement si BookingPage n'est pas la première route.
+        // Pour un contrôle explicite, vous pouvez utiliser `leading: BackButton(),`
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),

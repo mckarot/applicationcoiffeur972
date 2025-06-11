@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soifapp/booking_page.dart';
+import 'package:soifapp/widgets/logout_button.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart'; // Pour le formatage des dates
 import 'package:soifapp/salon_location_page.dart'; // Importer la page Localisation
@@ -146,6 +147,9 @@ class _PlanningPageState extends State<PlanningPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mon Planning'),
+        actions: [
+          const LogoutButton(), // Ajout du bouton de déconnexion
+        ],
         // Les couleurs de l'AppBar sont maintenant gérées par AppBarTheme dans main.dart
       ),
       body: Column(

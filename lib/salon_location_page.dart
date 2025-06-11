@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soifapp/booking_page.dart';
 import 'package:soifapp/planning_page.dart';
 import 'package:soifapp/settings_page.dart';
+import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart';
 
 class SalonLocationPage extends StatefulWidget {
@@ -46,6 +47,9 @@ class _SalonLocationPageState extends State<SalonLocationPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notre Emplacement'),
+        actions: [
+          const LogoutButton(), // Ajout du bouton de déconnexion
+        ],
       ),
       body: Center(
         child: Padding(

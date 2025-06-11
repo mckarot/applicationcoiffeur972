@@ -4,6 +4,7 @@ import 'package:soifapp/booking_page.dart';
 import 'package:soifapp/planning_page.dart';
 import 'package:soifapp/salon_location_page.dart'; // Importer la page Localisation
 import 'package:soifapp/change_password_page.dart'; // Importer la nouvelle page
+import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
 import 'package:soifapp/models/theme_provider.dart';
 
@@ -53,6 +54,9 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Paramètres'),
+        actions: [
+          const LogoutButton(), // Ajout du bouton de déconnexion
+        ],
         // La couleur s'adaptera grâce à AppBarTheme dans main.dart
       ),
       body: ListView(
