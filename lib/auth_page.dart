@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:soifapp/booking_page.dart'; // Importer la nouvelle page de réservation
+import 'package:soifapp/sign_up_page.dart'; // Importer la page d'inscription
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -14,7 +15,6 @@ class _AuthPageState extends State<AuthPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _isLogin = true; // Pour basculer entre connexion et inscription
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -34,48 +34,35 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
-  Future<void> _performAuth() async {
+  Future<void> _performLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
       try {
-        AuthResponse res;
-        if (_isLogin) {
-          res = await _supabase.auth.signInWithPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
-        } else {
-          res = await _supabase.auth.signUp(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
-        }
+        final AuthResponse res = await _supabase.auth.signInWithPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
 
+        // La navigation vers BookingPage est gérée par onAuthStateChange
+        // en cas de succès (res.user != null et session active).
+        // Si signInWithPassword réussit mais que l'utilisateur n'est pas confirmé,
+        // Supabase lèvera une AuthException qui sera attrapée ci-dessous.
         if (mounted) {
-          if (res.user != null) {
-            // La navigation est gérée par onAuthStateChange
-            if (!_isLogin && res.session == null) {
-              // Inscription réussie, mais e-mail de confirmation requis
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text(
-                        'Inscription réussie ! Veuillez vérifier vos e-mails pour confirmer votre compte.')),
-              );
-            }
-          } else if (res.session == null) {
+          if (res.user == null && res.session == null) {
+            // Ce cas est généralement couvert par AuthException pour les e-mails non confirmés ou les mauvais identifiants.
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                  content:
-                      Text('Erreur ou e-mail de confirmation en attente.')),
+                  content: Text(
+                      'Échec de la connexion. Vérifiez vos identifiants ou confirmez votre e-mail.')),
             );
           }
         }
       } on AuthException catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur: ${e.message}')),
+            SnackBar(content: Text('Erreur de connexion: ${e.message}')),
           );
         }
       } catch (e) {
@@ -105,9 +92,7 @@ class _AuthPageState extends State<AuthPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isLogin
-            ? 'Salon de Coiffure - Connexion'
-            : 'Salon de Coiffure - Inscription'),
+        title: const Text('Salon de Coiffure - Connexion'),
         backgroundColor: Colors.pink[100], // Une couleur douce pour un salon
       ),
       body: Padding(
@@ -126,11 +111,11 @@ class _AuthPageState extends State<AuthPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    _isLogin ? 'Connectez-vous' : 'Créez votre compte',
-                    style: TextStyle(
+                    'Connectez-vous',
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.pink[700],
+                      color: Colors.pink,
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -187,22 +172,20 @@ class _AuthPageState extends State<AuthPage> {
                               borderRadius: BorderRadius.circular(12.0),
                             ),
                           ),
-                          onPressed: _performAuth,
-                          child: Text(_isLogin ? 'Se connecter' : "S'inscrire",
-                              style: const TextStyle(color: Colors.white)),
+                          onPressed: _performLogin,
+                          child: const Text('Se connecter',
+                              style: TextStyle(color: Colors.white)),
                         ),
                   const SizedBox(height: 20),
                   TextButton(
                     onPressed: () {
-                      setState(() {
-                        _isLogin = !_isLogin;
-                        _formKey.currentState?.reset();
-                      });
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (context) => const SignUpPage()),
+                      );
                     },
                     child: Text(
-                      _isLogin
-                          ? "Pas encore de compte ? S'inscrire"
-                          : 'Déjà un compte ? Se connecter',
+                      "Pas encore de compte ? S'inscrire",
                       style: TextStyle(color: Colors.pink[700]),
                     ),
                   ),

@@ -12,9 +12,9 @@ void main() async {
       .ensureInitialized(); // Nécessaire si vous initialisez des choses avant runApp
   await Supabase.initialize(
     url:
-        'https://lizuadhgalmnmidqaxwr.supabase.co', // Remplacez par votre URL Supabase
+        'https://dxmnthkrdtlgdepujtmh.supabase.co', // Remplacez par votre URL Supabase
     anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpenVhZGhnYWxtbm1pZHFheHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2NTEyMzEsImV4cCI6MjA2NTIyNzIzMX0._avWjPJ4Evpk9sZmBotLBDTpQKNw3JT058GJXOWyCmo', // Remplacez par votre clé Anon Supabase
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4bW50aGtyZHRsZ2RlcHVqdG1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NDk1MzIsImV4cCI6MjA2NTMyNTUzMn0.g2H3BamnTq2mGDcTwzYtU0yYAKFccWfaqmZFBEcKARg', // Remplacez par votre clé Anon Supabase
   );
   await initializeDateFormatting(
       'fr_FR', null); // Initialise les données pour la locale française
