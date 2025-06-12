@@ -26,6 +26,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  final List<String> _roles = ['user', 'coiffeur', 'admin'];
+  String _selectedRole = 'user';
+
   Future<void> _performSignUp() async {
     if (_formKey.currentState!.validate()) {
       if (_passwordController.text != _confirmPasswordController.text) {
@@ -73,14 +76,11 @@ class _SignUpPageState extends State<SignUpPage> {
 
             await _supabase.from('profiles').insert({
               'id': res.user!.id,
-
               'nom': _nameController.text.trim(),
-
-// Insérer null si le champ téléphone est vide, sinon la valeur.
-
               'telephone': _phoneController.text.trim().isEmpty
                   ? null
                   : _phoneController.text.trim(),
+              'role': _selectedRole, // Utilise le rôle choisi
             });
 
             ScaffoldMessenger.of(context).showSnackBar(
@@ -244,6 +244,29 @@ class _SignUpPageState extends State<SignUpPage> {
                     validator: (value) => value == null || value.isEmpty
                         ? 'Veuillez confirmer le mot de passe'
                         : null,
+                  ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String>(
+                    value: _selectedRole,
+                    decoration: InputDecoration(
+                      labelText: 'Rôle',
+                      prefixIcon:
+                          Icon(Icons.person_outline, color: Colors.pink[300]),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.0)),
+                    ),
+                    items: _roles
+                        .map((role) => DropdownMenuItem(
+                              value: role,
+                              child: Text(
+                                  role[0].toUpperCase() + role.substring(1)),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedRole = value!;
+                      });
+                    },
                   ),
                   const SizedBox(height: 30),
                   _isLoading

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:soifapp/booking_page.dart'; // Importer la nouvelle page de réservation
 import 'package:soifapp/sign_up_page.dart'; // Importer la page d'inscription
+import 'package:soifapp/coiffeur_home_page.dart'; // Importer la page d'accueil coiffeur
+import 'package:soifapp/admin_home_page.dart'; // Importer la page d'accueil admin
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -21,11 +23,35 @@ class _AuthPageState extends State<AuthPage> {
   @override
   void initState() {
     super.initState();
-    _supabase.auth.onAuthStateChange.listen((data) {
+    _supabase.auth.onAuthStateChange.listen((data) async {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
       if (event == AuthChangeEvent.signedIn && session != null) {
-        if (mounted) {
+        final userId = session.user.id;
+        // Récupère le profil depuis Supabase
+        final response = await _supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+        final role = response['role'] ?? 'user';
+
+        if (!mounted) return;
+
+        if (role == 'user') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const BookingPage()),
+          );
+        } else if (role == 'coiffeur') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const CoiffeurHomePage()),
+          );
+        } else if (role == 'admin') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const AdminHomePage()),
+          );
+        } else {
+          // Par défaut, page utilisateur
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const BookingPage()),
           );
