@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:soifapp/booking_page.dart'; // Importer la nouvelle page de réservation
+import 'package:soifapp/users_page/booking_page.dart'; // Importer la nouvelle page de réservation
 import 'package:soifapp/sign_up_page.dart'; // Importer la page d'inscription
-import 'package:soifapp/coiffeur_home_page.dart'; // Importer la page d'accueil coiffeur
-import 'package:soifapp/admin_home_page.dart'; // Importer la page d'accueil admin
+import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer la page d'accueil coiffeur
+import 'package:soifapp/admins_pages/admin_home_page.dart'; // Importer la page d'accueil admin
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});

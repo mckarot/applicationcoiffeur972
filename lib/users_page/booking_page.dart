@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // Assurez-vous que intl est importé
-import 'package:soifapp/manage_appointments_page.dart';
+import 'package:soifapp/users_page/manage_appointments_page.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:soifapp/planning_page.dart'; // Importer la nouvelle page Planning
-import 'package:soifapp/salon_location_page.dart'; // Importer la page Localisation
-import 'package:soifapp/settings_page.dart'; // Importer la page Paramètres
+import 'package:soifapp/users_page/planning_page.dart'; // Importer la nouvelle page Planning
+import 'package:soifapp/users_page/salon_location_page.dart'; // Importer la page Localisation
+import 'package:soifapp/users_page/settings_page.dart'; // Importer la page Paramètres
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
 
-import 'package:soifapp/select_service_page.dart'; // Importer la nouvelle page de sélection
+import 'package:soifapp/users_page/select_service_page.dart'; // Importer la nouvelle page de sélection
 
 // Classe pour représenter un coiffeur avec plus de détails
 class Coiffeur {

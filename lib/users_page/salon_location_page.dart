@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:soifapp/booking_page.dart';
-import 'package:soifapp/planning_page.dart';
-import 'package:soifapp/settings_page.dart';
+import 'package:soifapp/users_page/booking_page.dart';
+import 'package:soifapp/users_page/planning_page.dart';
+import 'package:soifapp/users_page/settings_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart';
 

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:soifapp/booking_page.dart';
+import 'package:soifapp/users_page/booking_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart'; // Pour le formatage des dates
-import 'package:soifapp/salon_location_page.dart'; // Importer la page Localisation
+import 'package:soifapp/users_page/salon_location_page.dart'; // Importer la page Localisation
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
-import 'package:soifapp/settings_page.dart'; // Importer la page Paramètres
+import 'package:soifapp/users_page/settings_page.dart'; // Importer la page Paramètres
 
 // Classe simple pour représenter un rendez-vous
 class Appointment {
