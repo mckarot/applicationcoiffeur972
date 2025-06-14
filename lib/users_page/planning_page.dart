@@ -5,6 +5,8 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart'; // Pour le formatage des dates
 import 'package:soifapp/users_page/salon_location_page.dart'; // Importer la page Localisation
 import 'package:supabase_flutter/supabase_flutter.dart'; // Importer Supabase
+import 'package:timezone/timezone.dart' as tz; // Importer le package timezone
+
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
 import 'package:soifapp/users_page/settings_page.dart'; // Importer la page Paramètres
 
@@ -13,7 +15,7 @@ class Appointment {
   final String title;
   final String serviceName;
   final String coiffeurName;
-  final DateTime startTime;
+  final tz.TZDateTime startTime; // Utiliser TZDateTime
   final Duration duration;
 
   Appointment({
@@ -24,7 +26,9 @@ class Appointment {
     required this.duration,
   });
 
-  DateTime get endTime => startTime.add(duration);
+  tz.TZDateTime get endTime => tz.TZDateTime.fromMillisecondsSinceEpoch(
+      startTime.location,
+      startTime.millisecondsSinceEpoch + duration.inMilliseconds);
 }
 
 class PlanningPage extends StatefulWidget {
@@ -35,12 +39,13 @@ class PlanningPage extends StatefulWidget {
 }
 
 class _PlanningPageState extends State<PlanningPage> {
-  CalendarFormat _calendarFormat = CalendarFormat.month;
+  CalendarFormat _calendarFormat = CalendarFormat.twoWeeks; // Modifié ici
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   Map<DateTime, List<Appointment>> _events = {};
   bool _isLoading = true;
   String? _errorMessage;
+  tz.Location? _salonLocation; // Pour stocker la localisation du salon
 
   // Index pour la barre de navigation inférieure, initialisé à 1 pour "Planning"
   int _currentIndex = 1;
@@ -50,7 +55,19 @@ class _PlanningPageState extends State<PlanningPage> {
     super.initState();
     _selectedDay = _focusedDay;
     _currentIndex = 1; // S'assurer que l'onglet Planning est sélectionné
-    _groupAppointments();
+    _initializeSalonLocationAndLoadAppointments();
+  }
+
+  Future<void> _initializeSalonLocationAndLoadAppointments() async {
+    // Assurez-vous que initializeTimeZones() a été appelé dans main.dart
+    // Définissez ici le fuseau horaire de votre salon
+    try {
+      _salonLocation = tz.getLocation('Europe/Paris');
+      await _loadClientAppointments();
+    } catch (e) {
+      print("Erreur lors de l'initialisation du fuseau horaire du salon: $e");
+      // Gérer l'erreur, peut-être afficher un message à l'utilisateur
+    }
   }
 
   Future<void> _loadClientAppointments() async {
@@ -59,6 +76,14 @@ class _PlanningPageState extends State<PlanningPage> {
       _isLoading = true;
       _errorMessage = null;
     });
+
+    if (_salonLocation == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Fuseau horaire du salon non initialisé.";
+      });
+      return;
+    }
 
     try {
       final currentUser = Supabase.instance.client.auth.currentUser;
@@ -89,8 +114,11 @@ class _PlanningPageState extends State<PlanningPage> {
             title: 'RDV $coiffeurName - $serviceName', // Titre construit
             serviceName: serviceName,
             coiffeurName: coiffeurName,
-            startTime: DateTime.parse(item['start_time'] as String)
-                .toLocal(), // Convertir en local
+            // Convertir l'heure UTC de la DB en TZDateTime dans le fuseau du salon
+            startTime: tz.TZDateTime.from(
+                DateTime.parse(
+                    item['start_time'] as String), // Ceci est une heure UTC
+                _salonLocation!),
             duration: Duration(minutes: item['duration_minutes'] as int),
           ),
         );
@@ -113,8 +141,12 @@ class _PlanningPageState extends State<PlanningPage> {
     _events = {};
     for (var appointment in appointments) {
       // Normaliser la date pour qu'elle corresponde à la clé du Map (sans l'heure)
-      DateTime dateKey = DateTime(appointment.startTime.year,
-          appointment.startTime.month, appointment.startTime.day);
+      // Utiliser les composants de TZDateTime pour créer la clé
+      DateTime dateKey = tz.TZDateTime(
+          _salonLocation!,
+          appointment.startTime.year,
+          appointment.startTime.month,
+          appointment.startTime.day);
       if (_events[dateKey] == null) {
         _events[dateKey] = [];
       }
@@ -123,7 +155,12 @@ class _PlanningPageState extends State<PlanningPage> {
   }
 
   List<Appointment> _getEventsForDay(DateTime day) {
-    DateTime dateKey = DateTime(day.year, day.month, day.day);
+    if (_salonLocation == null) return [];
+    // 'day' vient du TableCalendar, qui utilise DateTime local.
+    // Convertir en TZDateTime pour la clé si 'day' est un jour sélectionné.
+    // Pour la clé du map _events, nous utilisons déjà des TZDateTime normalisés à minuit.
+    DateTime dateKey =
+        tz.TZDateTime(_salonLocation!, day.year, day.month, day.day);
     return _events[dateKey] ?? [];
   }
 
@@ -132,6 +169,10 @@ class _PlanningPageState extends State<PlanningPage> {
       setState(() {
         _selectedDay = selectedDay;
         _focusedDay = focusedDay;
+        // Si vous voulez que _focusedDay soit aussi un TZDateTime pour la cohérence interne:
+        // if (_salonLocation != null) {
+        //   _focusedDay = tz.TZDateTime(_salonLocation!, focusedDay.year, focusedDay.month, focusedDay.day);
+        // }
       });
     }
   }

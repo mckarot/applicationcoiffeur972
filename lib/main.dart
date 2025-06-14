@@ -5,19 +5,28 @@ import 'package:provider/provider.dart';
 import 'package:soifapp/auth_page.dart'; // Importez la nouvelle page
 import 'package:soifapp/models/theme_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Importer Supabase
+import 'package:timezone/data/latest.dart' as tz; // Import pour timezone
 
 void main() async {
   // La fonction main devient async
   WidgetsFlutterBinding
       .ensureInitialized(); // Nécessaire si vous initialisez des choses avant runApp
+
+  // Initialisation de Supabase
   await Supabase.initialize(
     url:
         'https://dxmnthkrdtlgdepujtmh.supabase.co', // Remplacez par votre URL Supabase
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4bW50aGtyZHRsZ2RlcHVqdG1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NDk1MzIsImV4cCI6MjA2NTMyNTUzMn0.g2H3BamnTq2mGDcTwzYtU0yYAKFccWfaqmZFBEcKARg', // Remplacez par votre clé Anon Supabase
   );
+
+  // Initialisation des données de fuseau horaire pour le package timezone
+  tz.initializeTimeZones();
+
+  // Initialisation des données de localisation pour intl (dates, etc.)
   await initializeDateFormatting(
       'fr_FR', null); // Initialise les données pour la locale française
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -54,6 +63,9 @@ class MyApp extends StatelessWidget {
         onSurface: Colors.black87,
         error: Colors.redAccent,
         onError: Colors.white,
+        // Couleurs spécifiques pour les containers de surface (utilisé dans BookingPage)
+        surfaceContainerHighest: Colors.pink[50], // Très clair
+        outlineVariant: Colors.pink[200], // Pour les bordures
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -79,7 +91,14 @@ class MyApp extends StatelessWidget {
         primary: Colors.pink[600]!,
         secondary: Colors.pinkAccent[100]!,
         surface: Colors.grey[800]!,
-        // ... autres couleurs du ColorScheme si nécessaire
+        onPrimary: Colors.black, // Texte sur fond primaire sombre
+        onSecondary: Colors.black,
+        onSurface: Colors.white70,
+        error: Colors.red[400]!,
+        onError: Colors.black,
+        // Couleurs spécifiques pour les containers de surface en mode sombre
+        surfaceContainerHighest: Colors.grey[700]!, // Un gris plus foncé
+        outlineVariant: Colors.grey[600]!, // Pour les bordures
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(

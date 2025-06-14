@@ -9,6 +9,7 @@ import 'package:soifapp/users_page/settings_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/timezone.dart' as tz; // Importer le package timezone
 
 // Tes fonctions d'aide existantes (inchangées)
 IconData _getDynamicIconForCoiffeur(String? id) {
@@ -125,13 +126,33 @@ class _BookingPageState extends State<BookingPage> {
   // Index pour la barre de navigation inférieure
   int _currentIndex = 0;
   static const int slotIncrementMinutes =
+      // ignore: constant_identifier_names
       15; // Granularité pour vérifier les créneaux
+  tz.Location? _salonLocation; // Pour stocker la localisation du salon
 
   @override
   void initState() {
     super.initState();
+    _initializeSalonLocation();
     _fetchCoiffeurs();
     _fetchServices();
+  }
+
+  Future<void> _initializeSalonLocation() async {
+    // Assurez-vous que initializeTimeZones() a été appelé dans main.dart
+    try {
+      _salonLocation = tz.getLocation(
+          'Europe/Paris'); // Définissez ici le fuseau horaire de votre salon
+    } catch (e) {
+      print("Erreur initialisation fuseau horaire salon (BookingPage): $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  "Erreur de configuration du fuseau horaire. La réservation pourrait être affectée.")),
+        );
+      }
+    }
   }
 
   Future<void> _fetchCoiffeurs() async {
@@ -280,6 +301,18 @@ class _BookingPageState extends State<BookingPage> {
       print('Date sélectionnée: ${selectedDate.toLocal()}');
       print('Durée du service: ${serviceDuration.inMinutes} minutes');
 
+      if (_salonLocation == null) {
+        print(
+            "ERREUR: _salonLocation est null dans _fetchAvailableSlots. Impossible de calculer les créneaux.");
+        setState(() {
+          _slotsError =
+              "Erreur de configuration du fuseau horaire. Impossible de charger les créneaux.";
+          _isLoadingSlots = false;
+          _dynamicAvailableSlots = [];
+        });
+        return;
+      }
+
       // Définir le début et la fin de la journée sélectionnée en UTC pour la requête des RDV existants
       final DateTime dayStartUtc = DateTime.utc(
           selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
@@ -336,7 +369,9 @@ class _BookingPageState extends State<BookingPage> {
         final startParts = startTimeStr.split(':');
         final endParts = endTimeStr.split(':');
 
-        final DateTime currentAvailabilityStartLocal = DateTime(
+        // Créer des TZDateTime dans le fuseau du salon pour la disponibilité du coiffeur
+        final tz.TZDateTime currentAvailabilityStartSalon = tz.TZDateTime(
+            _salonLocation!,
             selectedDate.year,
             selectedDate.month,
             selectedDate.day,
@@ -344,7 +379,8 @@ class _BookingPageState extends State<BookingPage> {
             int.parse(startParts[1]) // minute
             );
 
-        final DateTime currentAvailabilityEndLocal = DateTime(
+        final tz.TZDateTime currentAvailabilityEndSalon = tz.TZDateTime(
+            _salonLocation!,
             selectedDate.year,
             selectedDate.month,
             selectedDate.day,
@@ -353,36 +389,41 @@ class _BookingPageState extends State<BookingPage> {
             );
 
         print(
-            '  Bloc horaire local effectif: ${timeFormatter.format(currentAvailabilityStartLocal)} - ${timeFormatter.format(currentAvailabilityEndLocal)}');
+            '  Bloc horaire salon effectif: ${timeFormatter.format(currentAvailabilityStartSalon)} - ${timeFormatter.format(currentAvailabilityEndSalon)}');
 
-        DateTime potentialSlotStart = currentAvailabilityStartLocal;
+        tz.TZDateTime potentialSlotStartSalon = currentAvailabilityStartSalon;
 
         // Itérer par incréments (ex: 15 minutes)
-        while (potentialSlotStart
+        while (potentialSlotStartSalon
                 .add(serviceDuration)
-                .isBefore(currentAvailabilityEndLocal) ||
-            potentialSlotStart
+                .isBefore(currentAvailabilityEndSalon) ||
+            potentialSlotStartSalon
                 .add(serviceDuration)
-                .isAtSameMomentAs(currentAvailabilityEndLocal)) {
-          DateTime potentialSlotEnd = potentialSlotStart.add(serviceDuration);
+                .isAtSameMomentAs(currentAvailabilityEndSalon)) {
+          tz.TZDateTime potentialSlotEndSalon =
+              potentialSlotStartSalon.add(serviceDuration);
           print(
-              '  Créneau potentiel: ${timeFormatter.format(potentialSlotStart)} - ${timeFormatter.format(potentialSlotEnd)}');
+              '  Créneau potentiel (salon): ${timeFormatter.format(potentialSlotStartSalon)} - ${timeFormatter.format(potentialSlotEndSalon)}');
 
           // Vérifier si ce créneau potentiel chevauche un RDV existant
           bool overlapsWithExistingAppointment = false;
           for (var appointment in appointmentsData) {
-            // Les RDV sont en UTC, les convertir en local pour la comparaison
-            DateTime appointmentStartLocal =
-                DateTime.parse(appointment['start_time'] as String).toLocal();
-            DateTime appointmentEndLocal =
-                DateTime.parse(appointment['end_time'] as String).toLocal();
+            // Les RDV sont en UTC, les convertir en TZDateTime dans le fuseau du salon pour la comparaison
+            final DateTime rdvStartTimeUtc =
+                DateTime.parse(appointment['start_time'] as String);
+            final DateTime rdvEndTimeUtc =
+                DateTime.parse(appointment['end_time'] as String);
+
+            final tz.TZDateTime rdvStartSalon =
+                tz.TZDateTime.from(rdvStartTimeUtc, _salonLocation!);
+            final tz.TZDateTime rdvEndSalon =
+                tz.TZDateTime.from(rdvEndTimeUtc, _salonLocation!);
 
             // Condition de chevauchement: (StartA < EndB) and (EndA > StartB)
-            // potentialSlotStart et potentialSlotEnd sont déjà locaux.
-            if (potentialSlotStart.isBefore(appointmentEndLocal) &&
-                potentialSlotEnd.isAfter(appointmentStartLocal)) {
+            if (potentialSlotStartSalon.isBefore(rdvEndSalon) &&
+                potentialSlotEndSalon.isAfter(rdvStartSalon)) {
               print(
-                  '    -> Chevauche RDV existant: ${timeFormatter.format(appointmentStartLocal)} - ${timeFormatter.format(appointmentEndLocal)}');
+                  '    -> Chevauche RDV existant (salon): ${timeFormatter.format(rdvStartSalon)} - ${timeFormatter.format(rdvEndSalon)}');
               overlapsWithExistingAppointment = true;
               break;
             }
@@ -390,13 +431,14 @@ class _BookingPageState extends State<BookingPage> {
 
           if (!overlapsWithExistingAppointment) {
             print(
-                '    -> Créneau VALIDE ajouté: ${timeFormatter.format(potentialSlotStart)}');
+                '    -> Créneau VALIDE ajouté (salon): ${timeFormatter.format(potentialSlotStartSalon)}');
             // Le créneau est valide, ajouter l'heure de début formatée
-            calculatedSlots.add(timeFormatter.format(potentialSlotStart));
+            calculatedSlots.add(timeFormatter.format(
+                potentialSlotStartSalon)); // On stocke "HH:mm" basé sur l'heure du salon
           } else {
             print('    -> Créneau NON VALIDE (chevauchement)');
           }
-          potentialSlotStart = potentialSlotStart
+          potentialSlotStartSalon = potentialSlotStartSalon
               .add(const Duration(minutes: slotIncrementMinutes));
         }
       }
@@ -942,6 +984,17 @@ class _BookingPageState extends State<BookingPage> {
       return;
     }
 
+    if (_salonLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Erreur de configuration du fuseau horaire. Réservation annulée.')),
+      );
+      setState(() {
+        // Optionnel: Arrêter l'indicateur de chargement si vous en utilisez un ici
+      });
+      return;
+    }
     setState(() {
       // Optionnel: Mettre un indicateur de chargement sur le bouton ou globalement
     });
@@ -956,22 +1009,28 @@ class _BookingPageState extends State<BookingPage> {
       final hour = int.parse(timeParts[0]);
       final minute = int.parse(timeParts[1]);
 
-      final startTime = DateTime(
+      // Créer un TZDateTime dans le fuseau horaire du salon
+      final salonStartTime = tz.TZDateTime(
+        _salonLocation!,
         _selectedDate!.year,
         _selectedDate!.month,
         _selectedDate!.day,
         hour,
         minute,
       );
-      // Supabase client library handles local to UTC conversion for TIMESTAMPTZ
-      final endTime = startTime.add(_selectedService!.duration);
+
+      // Convertir en UTC pour le stockage
+      final utcStartTime = salonStartTime.toUtc();
+      final utcEndTime = salonStartTime.add(_selectedService!.duration).toUtc();
 
       await _supabaseClient.from('appointments').insert({
         'client_user_id': currentUser.id,
         'coiffeur_user_id': _selectedCoiffeurId,
         'service_id': _selectedService!.id,
-        'start_time': startTime.toIso8601String(),
-        'end_time': endTime.toIso8601String(),
+        'start_time':
+            utcStartTime.toIso8601String(), // Envoie une chaîne UTC (ex: ...Z)
+        'end_time':
+            utcEndTime.toIso8601String(), // Envoie une chaîne UTC (ex: ...Z)
         'duration_minutes': _selectedService!.duration.inMinutes,
         'service_name': _selectedService!.name,
         'price_at_booking': _selectedService!.price,

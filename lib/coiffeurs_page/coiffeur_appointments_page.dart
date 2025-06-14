@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soifapp/users_page/planning_page.dart'; // Pour la classe Appointment
 import 'package:supabase_flutter/supabase_flutter.dart'; // Importer Supabase
+import 'package:timezone/timezone.dart' as tz; // Importer le package timezone
 
 class CoiffeurAppointmentsPage extends StatefulWidget {
   final String coiffeurUserId;
@@ -19,11 +20,28 @@ class _CoiffeurAppointmentsPageState extends State<CoiffeurAppointmentsPage> {
   List<Appointment> _coiffeurAppointments = [];
   bool _isLoading = true;
   String? _errorMessage;
+  tz.Location? _salonLocation; // Pour stocker la localisation du salon
 
   @override
   void initState() {
     super.initState();
-    _loadAppointments();
+    _initializeSalonLocationAndLoadAppointments();
+  }
+
+  Future<void> _initializeSalonLocationAndLoadAppointments() async {
+    // Assurez-vous que initializeTimeZones() a été appelé dans main.dart
+    // Définissez ici le fuseau horaire de votre salon
+    try {
+      // Vous pouvez rendre ce nom de fuseau horaire configurable si nécessaire
+      _salonLocation = tz.getLocation('Europe/Paris');
+      await _loadAppointments();
+    } catch (e) {
+      print(
+          "Erreur lors de l'initialisation du fuseau horaire du salon (coiffeur): $e");
+      if (mounted)
+        setState(
+            () => _errorMessage = "Erreur de configuration du fuseau horaire.");
+    }
   }
 
   Future<void> _loadAppointments() async {
@@ -32,6 +50,14 @@ class _CoiffeurAppointmentsPageState extends State<CoiffeurAppointmentsPage> {
       _isLoading = true;
       _errorMessage = null;
     });
+
+    if (_salonLocation == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Fuseau horaire du salon non initialisé.";
+      });
+      return;
+    }
 
     try {
       final response = await Supabase.instance.client
@@ -71,7 +97,11 @@ class _CoiffeurAppointmentsPageState extends State<CoiffeurAppointmentsPage> {
             serviceName: serviceName,
             coiffeurName: widget
                 .coiffeurName, // Utiliser le nom du coiffeur passé en widget
-            startTime: DateTime.parse(item['start_time'] as String),
+            // Convertir l'heure UTC de la DB en TZDateTime dans le fuseau du salon
+            startTime: tz.TZDateTime.from(
+                DateTime.parse(
+                    item['start_time'] as String), // Ceci est une heure UTC
+                _salonLocation!),
             duration: Duration(minutes: item['duration_minutes'] as int),
           ),
         );
