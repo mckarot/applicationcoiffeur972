@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:soifapp/users_page/booking_page.dart';
+import 'package:soifapp/users_page/change_password_page.dart';
 import 'package:soifapp/users_page/planning_page.dart';
 import 'package:soifapp/users_page/salon_location_page.dart'; // Importer la page Localisation
-import 'package:soifapp/change_password_page.dart'; // Importer la nouvelle page
+// Importer la nouvelle page
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
 import 'package:soifapp/models/theme_provider.dart';
@@ -19,8 +20,9 @@ class _SettingsPageState extends State<SettingsPage> {
   int _currentIndex = 3; // L'onglet Paramètres est maintenant à l'index 3
 
   void _onNavBarTap(int index) {
-    if (index == _currentIndex && index == 3)
+    if (index == _currentIndex && index == 3) {
       return; // Déjà sur Paramètres et on clique sur Paramètres
+    }
 
     if (index == 0) {
       Navigator.pushReplacement(

@@ -1,28 +1,99 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Assurez-vous que intl est importé
-import 'package:soifapp/users_page/manage_appointments_page.dart';
+import 'package:intl/intl.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:soifapp/users_page/planning_page.dart'; // Importer la nouvelle page Planning
-import 'package:soifapp/users_page/salon_location_page.dart'; // Importer la page Localisation
-import 'package:soifapp/users_page/settings_page.dart'; // Importer la page Paramètres
+import 'package:soifapp/users_page/manage_appointments_page.dart';
+import 'package:soifapp/users_page/planning_page.dart';
+import 'package:soifapp/users_page/salon_location_page.dart';
+import 'package:soifapp/users_page/select_service_page.dart';
+import 'package:soifapp/users_page/settings_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
-import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
+import 'package:soifapp/widgets/modern_bottom_nav_bar.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:soifapp/users_page/select_service_page.dart'; // Importer la nouvelle page de sélection
+// Tes fonctions d'aide existantes (inchangées)
+IconData _getDynamicIconForCoiffeur(String? id) {
+  final icons = [
+    Icons.female_rounded,
+    Icons.male_rounded,
+    Icons.face_retouching_natural_rounded,
+    Icons.person_pin_circle_outlined,
+    Icons.spa_outlined,
+    Icons.content_cut_rounded,
+  ];
+  if (id == null || id.isEmpty) return Icons.person_outline;
+  return icons[id.hashCode % icons.length];
+}
 
-// Classe pour représenter un coiffeur avec plus de détails
+Color _getDynamicColorForCoiffeur(String? id) {
+  final colors = [
+    Colors.pinkAccent[100]!,
+    Colors.blueAccent[100]!,
+    Colors.purpleAccent[100]!,
+    Colors.greenAccent[100]!,
+    Colors.orangeAccent[100]!,
+    Colors.tealAccent[100]!,
+  ];
+  if (id == null || id.isEmpty) return Colors.grey[300]!;
+  return colors[id.hashCode % colors.length];
+}
+
 class Coiffeur {
   final String id;
-
   final String name;
-  final IconData icon;
-  final Color color;
+  final IconData icon; // Conserve l'icône dynamique si tu veux aussi
+  final Color color; // Conserve la couleur dynamique si tu veux aussi
+  final List<String>? specialites;
+  final String? descriptionBio;
+  final String? photoUrl; // Nouvelle propriété pour l'URL de la photo
 
-  Coiffeur(
-      {required this.id,
-      required this.name,
-      required this.icon,
-      required this.color});
+  Coiffeur({
+    required this.id,
+    required this.name,
+    required this.icon,
+    required this.color,
+    this.specialites,
+    this.descriptionBio,
+    this.photoUrl, // N'oublie pas de l'ajouter ici
+  });
+
+  factory Coiffeur.fromSupabase({
+    required Map<String, dynamic> coiffeurData,
+    required String profileName,
+    required SupabaseClient supabaseClient,
+  }) {
+    String userId = coiffeurData['user_id'] as String;
+    String? photoPath = coiffeurData['photo_url'] as String?;
+    String? trimmedPhotoPath =
+        photoPath?.trim(); // Nettoyer les espaces et sauts de ligne
+
+    String? publicPhotoUrl;
+    if (trimmedPhotoPath != null && trimmedPhotoPath.isNotEmpty) {
+      try {
+        publicPhotoUrl = supabaseClient.storage
+            .from('photos.coiffeurs')
+            .getPublicUrl(trimmedPhotoPath); // Utiliser le chemin nettoyé
+        print(
+            'Generated Photo URL for ${profileName}: $publicPhotoUrl'); // <-- ADD THIS LINE
+      } catch (e) {
+        print(
+            'Erreur lors de la récupération de l\'URL publique pour $trimmedPhotoPath: $e');
+        publicPhotoUrl = null;
+      }
+    }
+    // ... rest of your factory
+
+    return Coiffeur(
+      id: userId,
+      name: profileName,
+      icon: _getDynamicIconForCoiffeur(userId),
+      color: _getDynamicColorForCoiffeur(userId),
+      specialites: coiffeurData['specialites'] != null
+          ? List<String>.from(coiffeurData['specialites'])
+          : null,
+      descriptionBio: coiffeurData['description_bio'] as String?,
+      photoUrl: publicPhotoUrl, // Assigne l'URL publique ici
+    );
+  }
 }
 
 class BookingPage extends StatefulWidget {
@@ -38,145 +109,321 @@ class _BookingPageState extends State<BookingPage> {
   String? _selectedCoiffeurId; // Stockera l'ID du coiffeur sélectionné
   String? _selectedCreneau;
 
-  // Données fictives pour les services
-  final List<HaircutService> _services = [
-    HaircutService(
-        id: 'cf1',
-        name: 'Coupe & Brushing Femme',
-        duration: const Duration(minutes: 60),
-        price: 55.0,
-        subCategory: 'Coupes & Coiffages',
-        category: ServiceCategory.femme,
-        imagePlaceholder: 'femme_brushing'),
-    HaircutService(
-        id: 'cf1b',
-        name: 'Brushing Simple',
-        duration: const Duration(minutes: 30),
-        price: 25.0,
-        subCategory: 'Coupes & Coiffages',
-        category: ServiceCategory.femme,
-        imagePlaceholder: 'femme_brushing_simple'),
-    HaircutService(
-        id: 'cf2',
-        name: 'Couleur Femme (racines)',
-        duration: const Duration(hours: 1, minutes: 30),
-        price: 70.0,
-        subCategory: 'Techniques Couleur',
-        category: ServiceCategory.femme,
-        imagePlaceholder: 'femme_couleur'),
-    HaircutService(
-        id: 'cf3',
-        name: 'Mèches / Balayage',
-        duration: const Duration(hours: 2),
-        price: 90.0,
-        subCategory: 'Techniques Couleur',
-        category: ServiceCategory.femme,
-        imagePlaceholder: 'femme_meches'),
-    HaircutService(
-        id: 'ch1',
-        name: 'Coupe Homme Classique',
-        duration: const Duration(minutes: 30),
-        price: 25.0,
-        subCategory: 'Coupes',
-        category: ServiceCategory.homme,
-        imagePlaceholder: 'homme_classique'),
-    HaircutService(
-        id: 'ch1b',
-        name: 'Dégradé Américain',
-        duration: const Duration(minutes: 45),
-        price: 30.0,
-        subCategory: 'Coupes',
-        category: ServiceCategory.homme,
-        imagePlaceholder: 'homme_degrade'),
-    HaircutService(
-        id: 'ch2',
-        name: 'Coupe Homme + Barbe',
-        duration: const Duration(minutes: 45),
-        price: 35.0,
-        subCategory: 'Barbe & Rasage', // Ou 'Forfaits'
-        category: ServiceCategory.homme,
-        imagePlaceholder: 'homme_barbe'),
-    HaircutService(
-        id: 'ch3',
-        name: 'Taille de Barbe',
-        duration: const Duration(minutes: 20),
-        price: 15.0,
-        subCategory: 'Barbe & Rasage',
-        category: ServiceCategory.homme,
-        imagePlaceholder: 'homme_barbe_taille'),
-    HaircutService(
-        id: 'ce1',
-        name: 'Coupe Enfant (-10 ans)',
-        duration: const Duration(minutes: 30),
-        price: 18.0,
-        subCategory: 'Coupes Enfant',
-        category: ServiceCategory.enfant,
-        imagePlaceholder: 'enfant_coupe'),
-    HaircutService(
-        id: 'mix1',
-        name: 'Shampoing Traitant Spécifique',
-        duration: const Duration(minutes: 20),
-        price: 15.0,
-        subCategory: 'Soins Capillaires',
-        category: ServiceCategory.mixte,
-        imagePlaceholder: 'mixte_soin'),
-  ];
+  final SupabaseClient _supabaseClient = Supabase.instance.client;
+  List<Coiffeur> _coiffeurs = []; // Sera rempli depuis Supabase
+  bool _isLoadingCoiffeurs = false;
+  String? _coiffeursError;
+  List<HaircutService> _allServices = [];
+  bool _isLoadingServices = false;
+  String? _servicesError;
 
-  // Nouvelle liste de coiffeurs avec icônes et couleurs
-  final List<Coiffeur> _coiffeurs = [
-    Coiffeur(
-        id: 'c1',
-        name: 'Sophie',
-        icon: Icons.female_rounded,
-        color: Colors.pinkAccent[100]!),
-    Coiffeur(
-        id: 'c2',
-        name: 'Julien',
-        icon: Icons.male_rounded,
-        color: Colors.blueAccent[100]!),
-    Coiffeur(
-        id: 'c3',
-        name: 'Chloé',
-        icon: Icons.face_retouching_natural_rounded,
-        color: Colors.purpleAccent[100]!),
-    Coiffeur(
-        id: 'c4',
-        name: 'Marc',
-        icon: Icons.boy_rounded,
-        color: Colors.greenAccent[100]!),
-    Coiffeur(
-        id: 'c5',
-        name: 'Léa',
-        icon: Icons.girl_rounded,
-        color: Colors.orangeAccent[100]!),
-    Coiffeur(
-        id: 'c6',
-        name: 'Antoine',
-        icon: Icons.man_3_rounded,
-        color: Colors.tealAccent[100]!),
-    Coiffeur(
-        id: 'c7',
-        name: 'Manon',
-        icon: Icons.woman_2_rounded,
-        color: Colors.redAccent[100]!),
-  ];
-  final List<String> _creneauxDisponibles = [
-    '09:00 - 09:30',
-    '09:30 - 10:00',
-    '10:00 - 10:30',
-    '10:30 - 11:00',
-    '11:00 - 11:30',
-    '11:30 - 12:00',
-    '14:00 - 14:30',
-    '14:30 - 15:00',
-    '15:00 - 15:30',
-    '15:30 - 16:00',
-    '16:00 - 16:30',
-    '16:30 - 17:00',
-  ];
+  // Remplacé par des créneaux dynamiques
+  List<String> _dynamicAvailableSlots = [];
+  bool _isLoadingSlots = false;
+  String? _slotsError;
 
   // Index pour la barre de navigation inférieure
   int _currentIndex = 0;
+  static const int slotIncrementMinutes =
+      15; // Granularité pour vérifier les créneaux
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCoiffeurs();
+    _fetchServices();
+  }
+
+  Future<void> _fetchCoiffeurs() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingCoiffeurs = true;
+      _coiffeursError = null;
+    });
+
+    try {
+      final List<Map<String, dynamic>> activeCoiffeursData =
+          await _supabaseClient
+              .from('coiffeurs')
+              .select(
+                  'user_id, specialites, description_bio, photo_url') // <-- AJOUTE 'photo_url' ICI
+              .eq('actif', true);
+
+      if (activeCoiffeursData.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _coiffeurs = [];
+            _isLoadingCoiffeurs = false;
+          });
+        }
+        return;
+      }
+
+      final List<String> userIds =
+          activeCoiffeursData.map((c) => c['user_id'] as String).toList();
+
+      if (userIds.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _coiffeurs = [];
+            _isLoadingCoiffeurs = false;
+          });
+        }
+        return;
+      }
+
+      final List<Map<String, dynamic>> profilesData = await _supabaseClient
+          .from('profiles')
+          .select('id, nom')
+          .filter('id', 'in', userIds);
+
+      final List<Coiffeur> fetchedCoiffeurs = [];
+      for (var coiffeurRecord in activeCoiffeursData) {
+        final profileRecord = profilesData.firstWhere(
+          (p) => p['id'] == coiffeurRecord['user_id'],
+          orElse: () => <String, dynamic>{},
+        );
+
+        if (profileRecord.isNotEmpty && profileRecord['nom'] != null) {
+          fetchedCoiffeurs.add(Coiffeur.fromSupabase(
+            coiffeurData: coiffeurRecord,
+            profileName: profileRecord['nom'] as String,
+            supabaseClient: _supabaseClient, // <-- PASSE LE CLIENT SUPABASE ICI
+          ));
+        } else {
+          print(
+              'Avertissement: Coiffeur ID ${coiffeurRecord['user_id']} actif mais profil ou nom manquant.');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _coiffeurs = fetchedCoiffeurs;
+          _isLoadingCoiffeurs = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        print('Erreur lors de la récupération des coiffeurs: $e');
+        setState(() {
+          _coiffeursError = 'Impossible de charger les coiffeurs.';
+          _isLoadingCoiffeurs = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_coiffeursError!)),
+        );
+      }
+    }
+  }
+
+  Future<void> _fetchServices() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingServices = true;
+      _servicesError = null;
+    });
+
+    try {
+      final List<Map<String, dynamic>> servicesData =
+          await _supabaseClient.from('haircut_services').select();
+
+      if (mounted) {
+        setState(() {
+          _allServices = servicesData
+              .map((data) => HaircutService.fromSupabase(data))
+              .toList();
+          _isLoadingServices = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        print('Erreur lors de la récupération des services: $e');
+        setState(() {
+          _servicesError = 'Impossible de charger les services.';
+          _isLoadingServices = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_servicesError!)),
+        );
+      }
+    }
+  }
+
+  Future<void> _fetchAvailableSlots() async {
+    // Ne rien faire si les informations nécessaires ne sont pas sélectionnées
+    if (_selectedDate == null ||
+        _selectedService == null ||
+        _selectedCoiffeurId == null) {
+      setState(() {
+        _dynamicAvailableSlots = [];
+        _selectedCreneau = null;
+        _isLoadingSlots = false;
+        _slotsError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingSlots = true;
+      _slotsError = null;
+      _dynamicAvailableSlots = [];
+      _selectedCreneau = null; // Réinitialiser le créneau sélectionné
+    });
+
+    try {
+      final coiffeurId = _selectedCoiffeurId!;
+      final selectedDate = _selectedDate!;
+      final serviceDuration = _selectedService!.duration;
+
+      print('--- Début _fetchAvailableSlots ---');
+      print('Coiffeur ID: $coiffeurId');
+      print('Date sélectionnée: ${selectedDate.toLocal()}');
+      print('Durée du service: ${serviceDuration.inMinutes} minutes');
+
+      // Définir le début et la fin de la journée sélectionnée en UTC pour la requête des RDV existants
+      final DateTime dayStartUtc = DateTime.utc(
+          selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
+      final DateTime dayEndUtc = dayStartUtc
+          .add(const Duration(days: 1))
+          .subtract(const Duration(milliseconds: 1));
+      print('Période de requête UTC pour les RDV: $dayStartUtc à $dayEndUtc');
+
+      // 1. Récupérer les horaires de travail récurrents pour le coiffeur et le jour de la semaine sélectionné
+      final selectedDayOfWeek =
+          selectedDate.weekday; // Lundi = 1, ..., Dimanche = 7
+      final workSchedulesResponse = await _supabaseClient
+          .from('coiffeur_work_schedules')
+          .select(
+              'start_time, end_time') // Ce sont des HEURES LOCALES (ex: '09:00:00')
+          .eq('coiffeur_user_id', coiffeurId)
+          .eq('day_of_week', selectedDayOfWeek)
+          // Optionnel: filtrer par effective_date_start et effective_date_end si vous les utilisez
+          // .lte('effective_date_start', selectedDate.toIso8601String()) // ou IS NULL
+          // .gte('effective_date_end', selectedDate.toIso8601String()) // ou IS NULL
+          .order('start_time', ascending: true); // Trier par heure de début
+
+      final List<Map<String, dynamic>> workSchedulesData =
+          List<Map<String, dynamic>>.from(workSchedulesResponse);
+      print(
+          'Horaires de travail récupérés pour le jour $selectedDayOfWeek: $workSchedulesData');
+
+      // 2. Récupérer les rendez-vous existants pour ce coiffeur ce jour-là
+      final appointmentsResponse = await _supabaseClient
+          .from('appointments')
+          .select('start_time, end_time')
+          .eq('coiffeur_user_id', coiffeurId)
+          .lt('start_time', dayEndUtc.toIso8601String())
+          .gt('end_time', dayStartUtc.toIso8601String())
+          .order('start_time', ascending: true);
+
+      final List<Map<String, dynamic>> appointmentsData =
+          List<Map<String, dynamic>>.from(appointmentsResponse);
+
+      print('Rendez-vous bruts récupérés: $appointmentsData');
+
+      final List<String> calculatedSlots = [];
+      final DateFormat timeFormatter =
+          DateFormat.Hm('fr_FR'); // Pour formater l'heure
+
+      for (var schedule in workSchedulesData) {
+        print('Traitement du bloc horaire: $schedule');
+        final String startTimeStr =
+            schedule['start_time'] as String; // ex: "09:00:00"
+        final String endTimeStr =
+            schedule['end_time'] as String; // ex: "12:00:00"
+
+        // Parser les heures et minutes locales
+        final startParts = startTimeStr.split(':');
+        final endParts = endTimeStr.split(':');
+
+        final DateTime currentAvailabilityStartLocal = DateTime(
+            selectedDate.year,
+            selectedDate.month,
+            selectedDate.day,
+            int.parse(startParts[0]), // heure
+            int.parse(startParts[1]) // minute
+            );
+
+        final DateTime currentAvailabilityEndLocal = DateTime(
+            selectedDate.year,
+            selectedDate.month,
+            selectedDate.day,
+            int.parse(endParts[0]), // heure
+            int.parse(endParts[1]) // minute
+            );
+
+        print(
+            '  Bloc horaire local effectif: ${timeFormatter.format(currentAvailabilityStartLocal)} - ${timeFormatter.format(currentAvailabilityEndLocal)}');
+
+        DateTime potentialSlotStart = currentAvailabilityStartLocal;
+
+        // Itérer par incréments (ex: 15 minutes)
+        while (potentialSlotStart
+                .add(serviceDuration)
+                .isBefore(currentAvailabilityEndLocal) ||
+            potentialSlotStart
+                .add(serviceDuration)
+                .isAtSameMomentAs(currentAvailabilityEndLocal)) {
+          DateTime potentialSlotEnd = potentialSlotStart.add(serviceDuration);
+          print(
+              '  Créneau potentiel: ${timeFormatter.format(potentialSlotStart)} - ${timeFormatter.format(potentialSlotEnd)}');
+
+          // Vérifier si ce créneau potentiel chevauche un RDV existant
+          bool overlapsWithExistingAppointment = false;
+          for (var appointment in appointmentsData) {
+            // Les RDV sont en UTC, les convertir en local pour la comparaison
+            DateTime appointmentStartLocal =
+                DateTime.parse(appointment['start_time'] as String).toLocal();
+            DateTime appointmentEndLocal =
+                DateTime.parse(appointment['end_time'] as String).toLocal();
+
+            // Condition de chevauchement: (StartA < EndB) and (EndA > StartB)
+            // potentialSlotStart et potentialSlotEnd sont déjà locaux.
+            if (potentialSlotStart.isBefore(appointmentEndLocal) &&
+                potentialSlotEnd.isAfter(appointmentStartLocal)) {
+              print(
+                  '    -> Chevauche RDV existant: ${timeFormatter.format(appointmentStartLocal)} - ${timeFormatter.format(appointmentEndLocal)}');
+              overlapsWithExistingAppointment = true;
+              break;
+            }
+          }
+
+          if (!overlapsWithExistingAppointment) {
+            print(
+                '    -> Créneau VALIDE ajouté: ${timeFormatter.format(potentialSlotStart)}');
+            // Le créneau est valide, ajouter l'heure de début formatée
+            calculatedSlots.add(timeFormatter.format(potentialSlotStart));
+          } else {
+            print('    -> Créneau NON VALIDE (chevauchement)');
+          }
+          potentialSlotStart = potentialSlotStart
+              .add(const Duration(minutes: slotIncrementMinutes));
+        }
+      }
+      print('Créneaux calculés (avant dédoublonnage et tri): $calculatedSlots');
+
+      if (mounted) {
+        setState(() {
+          _dynamicAvailableSlots = calculatedSlots.toSet().toList()
+            ..sort(); // Enlever doublons et trier
+          _isLoadingSlots = false;
+        });
+      }
+      print('--- Fin _fetchAvailableSlots ---');
+    } catch (e, stacktrace) {
+      print('Erreur lors de la récupération des créneaux: $e');
+      print(stacktrace);
+      if (mounted) {
+        setState(() {
+          _slotsError = 'Impossible de charger les créneaux disponibles.';
+          _isLoadingSlots = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_slotsError!)),
+        );
+      }
+    }
+  }
 
   Future<void> _pickDate(BuildContext context) async {
     final DateTime? pickedDate = await showDatePicker(
@@ -203,6 +450,7 @@ class _BookingPageState extends State<BookingPage> {
         _selectedCreneau = null; // Réinitialiser le créneau si la date change
       });
     }
+    _fetchAvailableSlots(); // Mettre à jour les créneaux si la date change
   }
 
   void _navigateToSelectServicePage() async {
@@ -210,7 +458,7 @@ class _BookingPageState extends State<BookingPage> {
         await Navigator.push<HaircutService>(
       context,
       MaterialPageRoute(
-        builder: (context) => SelectServicePage(allServices: _services),
+        builder: (context) => SelectServicePage(allServices: _allServices),
       ),
     );
 
@@ -222,6 +470,7 @@ class _BookingPageState extends State<BookingPage> {
         _selectedCreneau =
             null; // Réinitialiser le créneau si le service change
       });
+      _fetchAvailableSlots(); // Mettre à jour les créneaux si le service change
     }
   }
 
@@ -244,6 +493,7 @@ class _BookingPageState extends State<BookingPage> {
               _selectedCreneau =
                   null; // Réinitialiser le créneau si la date change
             });
+            _fetchAvailableSlots(); // Mettre à jour les créneaux si la date change
           },
           child: Container(
             width: 60,
@@ -251,7 +501,7 @@ class _BookingPageState extends State<BookingPage> {
             decoration: BoxDecoration(
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.surfaceVariant,
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(10.0),
               border: Border.all(
                 color: isSelected
@@ -302,8 +552,23 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   Widget _buildCoiffeurSelector() {
+    if (_isLoadingCoiffeurs) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_coiffeursError != null) {
+      return Center(
+          child: Text(_coiffeursError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error)));
+    }
+
+    if (_coiffeurs.isEmpty) {
+      return const Center(
+          child: Text('Aucun coiffeur disponible pour le moment.'));
+    }
+
     return SizedBox(
-      height: 120, // Hauteur pour l'avatar et le nom
+      height: 120,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: _coiffeurs.length,
@@ -314,8 +579,9 @@ class _BookingPageState extends State<BookingPage> {
             onTap: () {
               setState(() {
                 _selectedCoiffeurId = coiffeur.id;
-                _selectedCreneau = null; // Réinitialiser le créneau
+                _selectedCreneau = null;
               });
+              _fetchAvailableSlots(); // Mettre à jour les créneaux si le coiffeur change
             },
             child: Padding(
               padding:
@@ -324,25 +590,42 @@ class _BookingPageState extends State<BookingPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.all(3.0), // Espace pour la bordure
+                    padding: const EdgeInsets.all(3.0),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: isSelected
-                          ? Border.all(color: Colors.pink[400]!, width: 2.5)
+                          ? Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2.5)
                           : Border.all(color: Colors.transparent, width: 2.5),
                     ),
-                    child: CircleAvatar(
-                      radius: 35,
-                      backgroundColor: coiffeur.color.withOpacity(0.8),
-                      child: Icon(coiffeur.icon, size: 30, color: Colors.white),
-                    ),
+                    child: coiffeur.photoUrl != null &&
+                            coiffeur.photoUrl!.isNotEmpty
+                        ? CircleAvatar(
+                            radius: 35,
+                            backgroundImage: NetworkImage(coiffeur.photoUrl!),
+                            backgroundColor:
+                                Colors.grey[200], // Placeholder couleur
+                            onBackgroundImageError: (exception, stackTrace) {
+                              // Gérer les erreurs de chargement d'image
+                              print(
+                                  'Erreur de chargement d\'image pour ${coiffeur.name}: $exception');
+                            },
+                          )
+                        : CircleAvatar(
+                            radius: 35,
+                            backgroundColor: coiffeur.color.withOpacity(0.8),
+                            child: Icon(coiffeur.icon,
+                                size: 30, color: Colors.white),
+                          ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     coiffeur.name,
                     style: TextStyle(
-                        color: isSelected ? Colors.pink[700] : Colors.grey[800],
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).textTheme.bodyLarge?.color,
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.normal,
                         fontSize: 13),
@@ -357,8 +640,9 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   void _onNavBarTap(int index) {
-    if (index == _currentIndex && index == 0)
+    if (index == _currentIndex && index == 0) {
       return; // Déjà sur RDV et on clique sur RDV
+    }
 
     if (index == 1) {
       Navigator.pushReplacement(
@@ -434,53 +718,65 @@ class _BookingPageState extends State<BookingPage> {
             const SizedBox(height: 30),
 
             // Choix du service
-            Text('2. Choisissez un service :',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary)),
-            const SizedBox(height: 10),
-            InkWell(
-              onTap: _navigateToSelectServicePage,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12.0),
-                  border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _selectedService == null
-                            ? 'Cliquez pour choisir un service'
-                            : '${_selectedService!.name} (${_selectedService!.duration.inMinutes} min)',
-                        style: TextStyle(
-                          color: _selectedService == null
-                              ? Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withOpacity(0.7)
-                              : Theme.of(context).colorScheme.primary,
-                          fontSize: 16,
+            if (_isLoadingServices)
+              const Center(child: CircularProgressIndicator())
+            else if (_servicesError != null)
+              Center(
+                  child: Text(_servicesError!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)))
+            else if (_allServices.isEmpty)
+              _buildInfoMessage('Aucun service disponible pour le moment.')
+            else ...[
+              Text('2. Choisissez un service :',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: _navigateToSelectServicePage,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                  decoration: BoxDecoration(
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12.0),
+                    border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _selectedService == null
+                              ? 'Cliquez pour choisir un service'
+                              : '${_selectedService!.name} (${_selectedService!.duration.inMinutes} min)',
+                          style: TextStyle(
+                            color: _selectedService == null
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withOpacity(0.7)
+                                : Theme.of(context).colorScheme.primary,
+                            fontSize: 16,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Icon(Icons.arrow_forward_ios_rounded,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.7),
-                        size: 18),
-                  ],
+                      Icon(Icons.arrow_forward_ios_rounded,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.7),
+                          size: 18),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
             const SizedBox(height: 30),
 
             // Choix du coiffeur
@@ -507,35 +803,71 @@ class _BookingPageState extends State<BookingPage> {
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 10),
-              const SizedBox(height: 15),
-              Wrap(
-                spacing: 10.0,
-                runSpacing: 10.0,
-                children: _creneauxDisponibles.map((creneau) {
-                  final isSelected = _selectedCreneau == creneau;
-                  return ChoiceChip(
-                    label: Text(creneau,
-                        style: TextStyle(
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : Theme.of(context).colorScheme.primary)),
-                    selected: isSelected,
-                    selectedColor: Theme.of(context).colorScheme.primary,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.surfaceVariant,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                      side: BorderSide(
-                          color: Theme.of(context).colorScheme.outlineVariant),
-                    ),
-                    onSelected: (bool selected) {
-                      setState(() {
-                        _selectedCreneau = selected ? creneau : null;
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
+              // Affichage des créneaux dynamiques
+              if (_isLoadingSlots)
+                const Center(
+                    child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(),
+                ))
+              else if (_slotsError != null)
+                Center(
+                    child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(_slotsError!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
+                ))
+              else if (_dynamicAvailableSlots.isEmpty)
+                _buildInfoMessage(
+                    'Aucun créneau disponible pour cette sélection.')
+              else
+                Wrap(
+                  spacing: 10.0,
+                  runSpacing: 10.0,
+                  children: _dynamicAvailableSlots.map((slotStartTime) {
+                    // slotStartTime est "HH:mm"
+                    final isSelected = _selectedCreneau == slotStartTime;
+                    String displaySlot = slotStartTime; // Par défaut
+                    if (_selectedService != null) {
+                      try {
+                        // Reconstruire "HH:mm - HH:mm" pour l'affichage
+                        final format = DateFormat.Hm('fr_FR');
+                        final start = format.parse(slotStartTime);
+                        final end = start.add(_selectedService!.duration);
+                        displaySlot =
+                            '${format.format(start)} - ${format.format(end)}';
+                      } catch (e) {
+                        print("Erreur parsing slot pour affichage: $e");
+                        // displaySlot reste slotStartTime
+                      }
+                    }
+                    return ChoiceChip(
+                      label: Text(displaySlot,
+                          style: TextStyle(
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.onPrimary
+                                  : Theme.of(context).colorScheme.primary)),
+                      selected: isSelected,
+                      selectedColor: Theme.of(context).colorScheme.primary,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                        side: BorderSide(
+                            color:
+                                Theme.of(context).colorScheme.outlineVariant),
+                      ),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          _selectedCreneau = selected
+                              ? slotStartTime
+                              : null; // On stocke "HH:mm"
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
               const SizedBox(height: 40),
               Center(
                 child: ElevatedButton.icon(
@@ -557,27 +889,7 @@ class _BookingPageState extends State<BookingPage> {
                   ),
                   // ...
                   onPressed: _selectedCreneau != null
-                      ? () {
-                          final String coiffeurName = _coiffeurs
-                              .firstWhere((c) => c.id == _selectedCoiffeurId)
-                              .name;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'RDV pour ${_selectedService!.name} avec $coiffeurName le ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year} à $_selectedCreneau. (Fictif)'),
-                              backgroundColor: Colors.green[
-                                  600], // Ou une couleur de succès du thème
-                            ),
-                          );
-                          // Naviguer vers la page de gestion des RDV
-                          Navigator.pushReplacement(
-                            // Ou Navigator.push si vous voulez pouvoir revenir
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) =>
-                                    const ManageAppointmentsPage()),
-                          );
-                        }
+                      ? _confirmBooking // Appel de la méthode de confirmation
                       : null,
                   // ...
                   // Bouton désactivé si aucun créneau n'est choisi
@@ -616,5 +928,82 @@ class _BookingPageState extends State<BookingPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmBooking() async {
+    if (_selectedDate == null ||
+        _selectedService == null ||
+        _selectedCoiffeurId == null ||
+        _selectedCreneau == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Veuillez compléter toutes les sélections.')),
+      );
+      return;
+    }
+
+    setState(() {
+      // Optionnel: Mettre un indicateur de chargement sur le bouton ou globalement
+    });
+
+    try {
+      final currentUser = _supabaseClient.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception("Utilisateur non connecté.");
+      }
+
+      final timeParts = _selectedCreneau!.split(':');
+      final hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1]);
+
+      final startTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        hour,
+        minute,
+      );
+      // Supabase client library handles local to UTC conversion for TIMESTAMPTZ
+      final endTime = startTime.add(_selectedService!.duration);
+
+      await _supabaseClient.from('appointments').insert({
+        'client_user_id': currentUser.id,
+        'coiffeur_user_id': _selectedCoiffeurId,
+        'service_id': _selectedService!.id,
+        'start_time': startTime.toIso8601String(),
+        'end_time': endTime.toIso8601String(),
+        'duration_minutes': _selectedService!.duration.inMinutes,
+        'service_name': _selectedService!.name,
+        'price_at_booking': _selectedService!.price,
+        'status': 'confirmed', // Statut initial
+        // 'notes': null, // Ajoutez un champ pour les notes si nécessaire
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Rendez-vous confirmé avec succès !'),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+        // Naviguer vers la page de gestion des RDV ou le planning
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (context) =>
+                  const PlanningPage()), // Ou ManageAppointmentsPage
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        print("Erreur lors de la confirmation du RDV: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erreur lors de la confirmation: ${e.toString()}')),
+        );
+      }
+    } finally {
+      // Optionnel: Arrêter l'indicateur de chargement
+    }
   }
 }

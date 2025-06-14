@@ -49,11 +49,9 @@ class MyApp extends StatelessWidget {
         primary: Colors.pink[400]!,
         secondary: Colors.pinkAccent[200]!,
         surface: Colors.white,
-        background: Colors.grey[50]!,
         onPrimary: Colors.white,
         onSecondary: Colors.black,
         onSurface: Colors.black87,
-        onBackground: Colors.black87,
         error: Colors.redAccent,
         onError: Colors.white,
       ),
@@ -81,7 +79,6 @@ class MyApp extends StatelessWidget {
         primary: Colors.pink[600]!,
         secondary: Colors.pinkAccent[100]!,
         surface: Colors.grey[800]!,
-        background: Colors.grey[850]!,
         // ... autres couleurs du ColorScheme si nécessaire
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
