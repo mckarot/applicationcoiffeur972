@@ -112,6 +112,16 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               TextFormField(
+                controller: _idController,
+                readOnly: true, // Important: ID généré et non modifiable
+                decoration: const InputDecoration(
+                  labelText: 'ID du Service (automatique)',
+                  border: OutlineInputBorder(),
+                ),
+                // Pas de validateur nécessaire car généré et non modifiable
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
                     labelText: 'Nom du Service*', border: OutlineInputBorder()),

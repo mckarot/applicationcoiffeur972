@@ -15,45 +15,6 @@ class _SelectServicePageState extends State<SelectServicePage> {
       ServiceCategory.femme; // Catégorie par défaut
   String? _selectedSubCategoryName;
 
-  // Définition des sous-catégories avec icônes et couleurs
-  // Utilisé pour générer les cartes de sous-catégories
-  static const Map<ServiceCategory, List<SubCategoryDisplay>>
-      _subCategoryOptions = {
-    ServiceCategory.femme: [
-      SubCategoryDisplay(
-          name: 'Coupes & Coiffages',
-          icon: Icons.content_cut,
-          color: Color(0xFFEC407A)), // Pink
-      SubCategoryDisplay(
-          name: 'Techniques Couleur',
-          icon: Icons.brush,
-          color: Color(0xFFAB47BC)), // Purple
-      SubCategoryDisplay(
-          name: 'Soins Capillaires',
-          icon: Icons.spa,
-          color: Color(0xFF26A69A)), // Teal
-    ],
-    ServiceCategory.homme: [
-      SubCategoryDisplay(
-          name: 'Coupes', icon: Icons.cut, color: Color(0xFF42A5F5)), // Blue
-      SubCategoryDisplay(
-          name: 'Barbe & Rasage',
-          icon: Icons.face_retouching_natural,
-          color: Color(0xFF8D6E63)), // Brown
-      SubCategoryDisplay(
-          name: 'Soins Capillaires',
-          icon: Icons.spa,
-          color: Color(0xFF26A69A)), // Teal
-    ],
-    ServiceCategory.enfant: [
-      SubCategoryDisplay(
-          name: 'Coupes Enfant',
-          icon: Icons.child_friendly,
-          color: Color(0xFF66BB6A)), // Green
-    ],
-    // Mixte n'est pas une catégorie principale de sélection ici
-  };
-
   // Helper pour obtenir une couleur/icône basée sur le placeholder
   Widget _buildServiceImage(HaircutService service) {
     IconData iconData;
@@ -93,9 +54,42 @@ class _SelectServicePageState extends State<SelectServicePage> {
     ServiceCategory.femme,
     ServiceCategory.homme,
     ServiceCategory.enfant,
+    ServiceCategory.mixte, // Ajouter Mixte ici
   ];
 
-  Widget _buildSubCategoryCard(SubCategoryDisplay subCategoryDisplay) {
+  // Fonctions pour générer des icônes et couleurs dynamiques pour les sous-catégories
+  IconData _getDynamicIconForSubCategory(String? name) {
+    final icons = [
+      Icons.style_outlined,
+      Icons.auto_fix_high_outlined,
+      Icons.content_cut_rounded,
+      Icons.brush_outlined,
+      Icons.spa_outlined,
+      Icons.face_retouching_natural_outlined,
+      Icons.waves_outlined,
+      Icons.color_lens_outlined,
+      Icons.category_outlined,
+    ];
+    if (name == null || name.isEmpty) return Icons.interests_outlined;
+    return icons[name.hashCode % icons.length];
+  }
+
+  Color _getDynamicColorForSubCategory(String? name, BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = [
+      theme.colorScheme.primaryContainer,
+      theme.colorScheme.secondaryContainer,
+      theme.colorScheme.tertiaryContainer,
+      theme.colorScheme.surfaceVariant,
+    ];
+    if (name == null || name.isEmpty) return theme.colorScheme.surfaceBright;
+    return colors[name.hashCode % colors.length];
+  }
+
+  Widget _buildSubCategoryCard(String subCategoryName) {
+    final icon = _getDynamicIconForSubCategory(subCategoryName);
+    final color = _getDynamicColorForSubCategory(subCategoryName, context);
+
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -103,7 +97,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedSubCategoryName = subCategoryDisplay.name;
+            _selectedSubCategoryName = subCategoryName;
           });
         },
         child: Column(
@@ -112,15 +106,15 @@ class _SelectServicePageState extends State<SelectServicePage> {
           children: [
             Expanded(
               child: Container(
-                color: subCategoryDisplay.color.withOpacity(0.15),
-                child: Icon(subCategoryDisplay.icon,
-                    color: subCategoryDisplay.color, size: 50),
+                color: color.withOpacity(0.15), // Utiliser la couleur dynamique
+                child: Icon(icon,
+                    color: color, size: 50), // Utiliser l'icône dynamique
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(10.0),
               child: Text(
-                subCategoryDisplay.name,
+                subCategoryName, // Afficher le nom de la sous-catégorie
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
@@ -138,36 +132,23 @@ class _SelectServicePageState extends State<SelectServicePage> {
   }
 
   Widget _buildSubCategorySelection() {
-    final List<SubCategoryDisplay> currentSubCategories =
-        _subCategoryOptions[_selectedMainCategory] ?? [];
-
-    final List<SubCategoryDisplay> displayableSubCategories =
-        currentSubCategories.where((scd) {
-      // scd est un objet SubCategoryDisplay de vos options codées en dur.
-      // Nous voulons afficher cette carte de sous-catégorie (scd) SI
-      // il existe au moins un service dans widget.allServices qui correspond.
-      return widget.allServices.any((service) {
-        // Condition 1: Les noms des sous-catégories doivent correspondre (ignorer la casse et les espaces)
-        bool subCategoryNameMatch = service.subCategory.trim().toLowerCase() ==
-            scd.name.trim().toLowerCase();
-        if (!subCategoryNameMatch) return false;
-
-        // Condition 2: Compatibilité des catégories
-        // Si le nom de la sous-catégorie correspond, le service est pertinent si sa catégorie principale
-        // correspond à la catégorie principale sélectionnée OU si le service est de catégorie 'mixte'.
-        if (service.category == _selectedMainCategory ||
-            service.category == ServiceCategory.mixte) {
-          return true;
-        }
-        return false;
-      });
+    // 1. Filtrer les services pour la catégorie principale sélectionnée (ou mixte)
+    final relevantServices = widget.allServices.where((service) {
+      return service.category == _selectedMainCategory ||
+          service.category == ServiceCategory.mixte;
     }).toList();
 
-    if (displayableSubCategories.isEmpty) {
-      return Center(
-          child: Text('Aucun service disponible pour cette catégorie.',
-              style: TextStyle(color: Colors.pink[300], fontSize: 16)));
-    }
+    // 2. Extraire les noms de sous-catégories uniques de ces services
+    final Set<String> uniqueSubCategoryNames =
+        relevantServices.map((service) => service.subCategory.trim()).toSet();
+
+    // 3. Filtrer les sous-catégories vides si jamais il y en a
+    final List<String> displayableSubCategoryNames =
+        uniqueSubCategoryNames.where((name) => name.isNotEmpty).toList();
+
+    // Optionnel: trier les noms des sous-catégories
+    displayableSubCategoryNames
+        .sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     return GridView.builder(
       padding: const EdgeInsets.all(12.0),
@@ -177,10 +158,10 @@ class _SelectServicePageState extends State<SelectServicePage> {
         mainAxisSpacing: 12.0,
         childAspectRatio: 0.9, // Ajustez pour la proportion des cartes
       ),
-      itemCount: displayableSubCategories.length,
+      itemCount: displayableSubCategoryNames.length,
       itemBuilder: (context, index) {
-        final subCategoryDisplay = displayableSubCategories[index];
-        return _buildSubCategoryCard(subCategoryDisplay);
+        final subCategoryName = displayableSubCategoryNames[index];
+        return _buildSubCategoryCard(subCategoryName);
       },
     );
   }
@@ -237,8 +218,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
                   case ServiceCategory.enfant:
                     text = 'Enfant';
                     break;
-                  case ServiceCategory.mixte: // Ne devrait pas être ici
-                    text = '';
+                  case ServiceCategory.mixte:
+                    text = 'Mixte'; // Afficher "Mixte"
                 }
                 return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -259,13 +240,16 @@ class _SelectServicePageState extends State<SelectServicePage> {
   Widget _buildServiceListForSubCategory() {
     final List<HaircutService> servicesToList =
         widget.allServices.where((service) {
-      if (service.subCategory != _selectedSubCategoryName) return false;
-      if (service.category == _selectedMainCategory) return true;
-      if (service.category == ServiceCategory.mixte) {
-        return _subCategoryOptions[_selectedMainCategory]
-                ?.any((scd) => scd.name == service.subCategory) ??
-            false;
-      }
+      // Comparaison insensible à la casse et aux espaces pour la sous-catégorie
+      bool subCategoryMatch = service.subCategory.trim().toLowerCase() ==
+          _selectedSubCategoryName?.trim().toLowerCase();
+
+      if (!subCategoryMatch) return false;
+
+      // Le service doit appartenir à la catégorie principale sélectionnée OU être mixte
+      bool categoryMatch = service.category == _selectedMainCategory ||
+          service.category == ServiceCategory.mixte;
+      return categoryMatch;
       return false;
     }).toList();
 
@@ -304,14 +288,4 @@ class _SelectServicePageState extends State<SelectServicePage> {
       },
     );
   }
-}
-
-// Classe simple pour la structure des données d'affichage des sous-catégories
-class SubCategoryDisplay {
-  final String name;
-  final IconData icon;
-  final Color color;
-
-  const SubCategoryDisplay(
-      {required this.name, required this.icon, required this.color});
 }

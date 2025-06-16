@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:soifapp/admins_pages/manage_coiffeurs_page.dart'; // Importer la nouvelle page
 import 'package:soifapp/admins_pages/add_haircut_service_page.dart'; // Importer la page d'ajout de service
 import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer pour voir le planning
+import 'package:soifapp/admins_pages/admin_manage_services_page.dart'; // Importer la page de gestion des services
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -137,6 +138,20 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     context,
                     MaterialPageRoute(
                         builder: (context) => const AddHaircutServicePage()));
+              },
+              style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.list_alt_outlined),
+              label: const Text('Gérer les Services Existants'),
+              onPressed: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const AdminManageServicesPage()));
               },
               style: ElevatedButton.styleFrom(
                   padding:
