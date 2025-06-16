@@ -7,7 +7,14 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 class CoiffeurHomePage extends StatefulWidget {
-  const CoiffeurHomePage({super.key});
+  final String? coiffeurUserIdFromAdmin;
+  final String? coiffeurNameFromAdmin;
+
+  const CoiffeurHomePage({
+    super.key,
+    this.coiffeurUserIdFromAdmin,
+    this.coiffeurNameFromAdmin,
+  });
 
   @override
   State<CoiffeurHomePage> createState() => _CoiffeurHomePageState();
@@ -55,26 +62,37 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
       _errorMessage = null;
     });
 
-    final currentUser = _supabase.auth.currentUser;
-    if (currentUser == null) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Utilisateur non connecté.";
-          _isLoading = false;
-        });
+    if (widget.coiffeurUserIdFromAdmin != null) {
+      _coiffeurId = widget.coiffeurUserIdFromAdmin;
+      _coiffeurName = widget.coiffeurNameFromAdmin ??
+          'Coiffeur'; // Utiliser le nom fourni ou un défaut
+    } else {
+      final currentUser = _supabase.auth.currentUser;
+      if (currentUser == null) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = "Utilisateur non connecté.";
+            _isLoading = false;
+          });
+        }
+        return;
       }
-      return;
+      _coiffeurId = currentUser.id;
     }
-    _coiffeurId = currentUser.id;
 
     try {
-      // Récupérer le nom du coiffeur
-      final profileResponse = await _supabase
-          .from('profiles')
-          .select('nom')
-          .eq('id', _coiffeurId!)
-          .single();
-      _coiffeurName = profileResponse['nom'] as String? ?? 'Coiffeur';
+      // Récupérer le nom du coiffeur seulement si non fourni par l'admin
+      if (widget.coiffeurUserIdFromAdmin == null ||
+          widget.coiffeurNameFromAdmin == null) {
+        final profileResponse = await _supabase
+            .from('profiles')
+            .select('nom')
+            .eq('id', _coiffeurId!)
+            .single();
+        _coiffeurName =
+            profileResponse['nom'] as String? ?? _coiffeurName ?? 'Coiffeur';
+      }
+      // Si widget.coiffeurNameFromAdmin est fourni, _coiffeurName est déjà initialisé.
 
       // Récupérer les rendez-vous du coiffeur
       final appointmentsResponse = await _supabase
@@ -161,9 +179,14 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_coiffeurName == null
-            ? 'Espace Coiffeur'
+            ? (widget.coiffeurUserIdFromAdmin != null
+                ? 'Planning Coiffeur'
+                : 'Mon Planning')
             : 'Planning - $_coiffeurName'),
-        actions: const [LogoutButton()],
+        // Ne pas afficher le bouton de déconnexion si l'admin consulte
+        actions: widget.coiffeurUserIdFromAdmin == null
+            ? const [LogoutButton()]
+            : [],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

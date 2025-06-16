@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:soifapp/users_page/manage_appointments_page.dart';
 import 'package:soifapp/users_page/planning_page.dart';
 import 'package:soifapp/users_page/salon_location_page.dart';
 import 'package:soifapp/users_page/select_service_page.dart';

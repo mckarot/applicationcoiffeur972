@@ -143,13 +143,21 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
     final List<SubCategoryDisplay> displayableSubCategories =
         currentSubCategories.where((scd) {
+      // scd est un objet SubCategoryDisplay de vos options codées en dur.
+      // Nous voulons afficher cette carte de sous-catégorie (scd) SI
+      // il existe au moins un service dans widget.allServices qui correspond.
       return widget.allServices.any((service) {
-        if (service.subCategory != scd.name) return false;
-        if (service.category == _selectedMainCategory) return true;
-        if (service.category == ServiceCategory.mixte) {
-          return _subCategoryOptions[_selectedMainCategory]
-                  ?.any((s) => s.name == service.subCategory) ??
-              false;
+        // Condition 1: Les noms des sous-catégories doivent correspondre (ignorer la casse et les espaces)
+        bool subCategoryNameMatch = service.subCategory.trim().toLowerCase() ==
+            scd.name.trim().toLowerCase();
+        if (!subCategoryNameMatch) return false;
+
+        // Condition 2: Compatibilité des catégories
+        // Si le nom de la sous-catégorie correspond, le service est pertinent si sa catégorie principale
+        // correspond à la catégorie principale sélectionnée OU si le service est de catégorie 'mixte'.
+        if (service.category == _selectedMainCategory ||
+            service.category == ServiceCategory.mixte) {
+          return true;
         }
         return false;
       });
