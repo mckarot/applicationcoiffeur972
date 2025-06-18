@@ -1,7 +1,7 @@
 enum ServiceCategory { homme, femme, enfant, mixte }
 
 // Helper pour parser la catégorie depuis une chaîne
-ServiceCategory _parseServiceCategory(String categoryString) {
+ServiceCategory serviceCategoryFromString(String categoryString) {
   switch (categoryString.toLowerCase()) {
     case 'homme':
       return ServiceCategory.homme;
@@ -12,8 +12,17 @@ ServiceCategory _parseServiceCategory(String categoryString) {
     case 'mixte':
       return ServiceCategory.mixte;
     default:
+      // Il est bon de loguer la valeur inconnue pour faciliter le débogage.
+      print(
+          "Erreur: Chaîne de catégorie de service inconnue reçue: '$categoryString'");
       throw ArgumentError('Unknown service category: $categoryString');
   }
+}
+
+// Extension pour ajouter la méthode toJson à ServiceCategory
+extension ServiceCategoryExtension on ServiceCategory {
+  /// Convertit l'enum ServiceCategory en sa représentation String (ex: "femme").
+  String toJson() => name;
 }
 
 class HaircutService {
@@ -43,7 +52,8 @@ class HaircutService {
       duration: Duration(minutes: data['duration_minutes'] as int),
       price: (data['price'] as num).toDouble(),
       subCategory: data['sub_category'] as String,
-      category: _parseServiceCategory(data['category'] as String),
+      category: serviceCategoryFromString(
+          data['category'] as String), // Utilise la fonction publique
       imagePlaceholder: data['image_placeholder'] as String? ?? '',
     );
   }
