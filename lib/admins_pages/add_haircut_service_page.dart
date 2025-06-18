@@ -38,6 +38,45 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
   void initState() {
     super.initState();
     _idController.text = _uuid.v4(); // Générer un ID UUID v4 par défaut
+    _fetchExistingSubCategories();
+  }
+
+  List<String> _existingSubCategories = [];
+  bool _isLoadingSubCategories = true;
+  String? _selectedSubCategoryInDropdown; // Pour le DropdownButtonFormField
+
+  Future<void> _fetchExistingSubCategories() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingSubCategories = true;
+    });
+    try {
+      final response =
+          await _supabase.from('haircut_services').select('sub_category');
+
+      if (!mounted) return;
+
+      final Set<String> subCategoriesSet = {};
+      for (var item in response) {
+        final subCategory = item['sub_category'] as String?;
+        if (subCategory != null && subCategory.trim().isNotEmpty) {
+          subCategoriesSet.add(subCategory.trim());
+        }
+      }
+      setState(() {
+        _existingSubCategories = subCategoriesSet.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        _isLoadingSubCategories = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        print("Erreur lors de la récupération des sous-catégories: $e");
+        setState(() {
+          _isLoadingSubCategories =
+              false; // Permet de continuer même en cas d'erreur
+        });
+      }
+    }
   }
 
   Future<void> _addService() async {
@@ -251,19 +290,107 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                     : null,
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _subCategoryController,
-                decoration: const InputDecoration(
-                    labelText: 'Sous-catégorie*',
-                    hintText: 'Ex: Coupes, Couleur, Barbe, Soins...',
-                    border: OutlineInputBorder()),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Veuillez entrer une sous-catégorie.';
-                  }
-                  return null;
-                },
-              ),
+              if (_isLoadingSubCategories)
+                const Center(child: CircularProgressIndicator())
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: _selectedSubCategoryInDropdown,
+                      decoration: const InputDecoration(
+                        labelText:
+                            'Choisir une sous-catégorie existante (optionnel)',
+                        border: OutlineInputBorder(),
+                      ),
+                      hint: const Text(
+                          'Sélectionner pour remplir le champ ci-dessous'),
+                      items: _existingSubCategories.map((String subCategory) {
+                        return DropdownMenuItem<String>(
+                          value: subCategory,
+                          child: Text(subCategory),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedSubCategoryInDropdown = newValue;
+                          _subCategoryController.text = newValue ?? '';
+                          // Valider à nouveau le formulaire si on veut que le validateur du TextFormField réagisse
+                          // _formKey.currentState?.validate();
+                        });
+                      },
+                      // Pas de validateur ici, car le champ Autocomplete est le champ principal
+                    ),
+                    const SizedBox(height: 16),
+                    Autocomplete<String>(
+                      // Clé pour forcer la reconstruction si _subCategoryController.text change de l'extérieur (par le dropdown)
+                      // initialValue est important pour que le champ texte de Autocomplete reflète les changements
+                      // venant du DropdownButtonFormField.
+                      initialValue:
+                          TextEditingValue(text: _subCategoryController.text),
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        // textEditingValue est la valeur actuelle du champ texte de Autocomplete
+                        if (textEditingValue.text.isEmpty) {
+                          return const Iterable<String>.empty();
+                        }
+                        return _existingSubCategories.where((String option) {
+                          return option
+                              .toLowerCase()
+                              .contains(textEditingValue.text.toLowerCase());
+                        });
+                      },
+                      onSelected: (String selection) {
+                        // Appelé quand une suggestion de l'Autocomplete est sélectionnée.
+                        // Le champ texte de l'Autocomplete est déjà mis à jour avec 'selection'.
+                        setState(() {
+                          _subCategoryController.text = selection;
+                          _selectedSubCategoryInDropdown =
+                              selection; // Synchroniser le dropdown
+                        });
+                        FocusScope.of(context).unfocus();
+                      },
+                      fieldViewBuilder: (BuildContext context,
+                          TextEditingController
+                              fieldTextEditingController, // Contrôleur interne à Autocomplete
+                          FocusNode fieldFocusNode,
+                          VoidCallback onFieldSubmitted) {
+                        // fieldTextEditingController est initialisé par `initialValue` de Autocomplete.
+                        // Si _subCategoryController.text a été changé par le dropdown,
+                        // fieldTextEditingController.text reflètera cela grâce à `initialValue`.
+
+                        return TextFormField(
+                          controller:
+                              fieldTextEditingController, // Utiliser le contrôleur fourni par Autocomplete
+                          focusNode: fieldFocusNode,
+                          decoration: const InputDecoration(
+                              labelText: 'Sous-catégorie*',
+                              hintText: 'Saisir une nouvelle sous-catégorie',
+                              border: OutlineInputBorder()),
+                          validator: (value) {
+                            // Ce validateur s'applique au _subCategoryController.text effectif
+                            if (_subCategoryController.text.trim().isEmpty) {
+                              return 'Veuillez entrer ou sélectionner une sous-catégorie.';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) {
+                            // Appelé quand l'utilisateur tape dans le champ Autocomplete.
+                            // Mettre à jour notre contrôleur principal et synchroniser le dropdown.
+                            setState(() {
+                              _subCategoryController.text = value;
+                              if (_existingSubCategories.contains(value)) {
+                                _selectedSubCategoryInDropdown = value;
+                              } else {
+                                _selectedSubCategoryInDropdown = null;
+                              }
+                            });
+                          },
+                          onFieldSubmitted: (_) => onFieldSubmitted(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               const SizedBox(height: 16),
               Text("Image du Service (optionnel) :",
                   style: Theme.of(context).textTheme.titleMedium),
