@@ -38,9 +38,10 @@ class _CoiffeurAppointmentsPageState extends State<CoiffeurAppointmentsPage> {
     } catch (e) {
       print(
           "Erreur lors de l'initialisation du fuseau horaire du salon (coiffeur): $e");
-      if (mounted)
+      if (mounted) {
         setState(
             () => _errorMessage = "Erreur de configuration du fuseau horaire.");
+      }
     }
   }
 

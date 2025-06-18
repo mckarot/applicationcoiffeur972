@@ -80,7 +80,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
       theme.colorScheme.primaryContainer,
       theme.colorScheme.secondaryContainer,
       theme.colorScheme.tertiaryContainer,
-      theme.colorScheme.surfaceVariant,
+      theme.colorScheme.surfaceContainerHighest,
     ];
     if (name == null || name.isEmpty) return theme.colorScheme.surfaceBright;
     return colors[name.hashCode % colors.length];

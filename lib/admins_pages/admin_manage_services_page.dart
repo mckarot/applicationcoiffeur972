@@ -133,11 +133,9 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             : Colors.purple[700]!;
         break;
     }
-    return CircleAvatar(
-      radius: 30,
-      backgroundColor: Colors.grey,
-      child: Icon(iconData, color: Colors.white, size: 30), // Original
-    ); // Ce widget sera remplacé par un Container pour correspondre au style des cartes de sous-catégories
+    // Le CircleAvatar précédent était redondant et non le style final visé.
+    // Le widget correct à retourner est le Container ci-dessous.
+
     return Container(
       decoration: BoxDecoration(
         color: baseColor.withOpacity(0.20), // Fond avec opacité
@@ -218,15 +216,57 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       theme.colorScheme.tertiaryContainer,
       theme.colorScheme.surfaceContainerHighest, // ou surfaceVariant
     ];
-    if (name == null || name.isEmpty)
+    if (name == null || name.isEmpty) {
       return theme.colorScheme.surfaceBright; // ou surface
+    }
     return colors[name.hashCode % colors.length];
   }
 
-  Widget _buildSubCategoryCard(String subCategoryName) {
-    final icon = _getDynamicIconForSubCategory(subCategoryName);
-    final color = _getDynamicColorForSubCategory(subCategoryName, context);
+  Widget _buildSubCategoryCard(
+      String subCategoryName, String? subCategoryImagePath) {
+    Widget imageWidget;
 
+    if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
+      try {
+        final imageUrl = _supabase.storage
+            .from('sub.category.images') // Bucket des images de sous-catégories
+            .getPublicUrl(subCategoryImagePath);
+        imageWidget = Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) {
+            print(
+                "Erreur chargement image sous-catégorie (admin manage card): $error");
+            // Fallback à l'icône dynamique si l'image ne charge pas
+            final icon = _getDynamicIconForSubCategory(subCategoryName);
+            final color =
+                _getDynamicColorForSubCategory(subCategoryName, context);
+            return Container(
+                color: color.withOpacity(0.15),
+                child: Icon(icon, color: color, size: 50));
+          },
+        );
+      } catch (e) {
+        print("Erreur construction URL image (admin manage card): $e");
+        // Fallback si l'URL ne peut être construite
+        final icon = _getDynamicIconForSubCategory(subCategoryName);
+        final color = _getDynamicColorForSubCategory(subCategoryName, context);
+        imageWidget = Container(
+            color: color.withOpacity(0.15),
+            child: Icon(icon, color: color, size: 50));
+      }
+    } else {
+      // Pas de chemin d'image, utiliser l'icône dynamique
+      final icon = _getDynamicIconForSubCategory(subCategoryName);
+      final color = _getDynamicColorForSubCategory(subCategoryName, context);
+      imageWidget = Container(
+          color: color.withOpacity(0.15),
+          child: Icon(icon, color: color, size: 50));
+    }
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -242,10 +282,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: Container(
-                color: color.withOpacity(0.15),
-                child: Icon(icon, color: color, size: 50),
-              ),
+              child: imageWidget, // Utilise le widget image construit
             ),
             Padding(
               padding: const EdgeInsets.all(10.0),
@@ -273,11 +310,24 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
           service.category == ServiceCategory.mixte;
     }).toList();
 
-    final Set<String> uniqueSubCategoryNames =
-        relevantServices.map((service) => service.subCategory.trim()).toSet();
-
+    // Crée une map pour stocker le nom de la sous-catégorie et son image (si disponible)
+    final Map<String, String?> subCategoryDetails = {};
+    for (var service in relevantServices) {
+      final subCategoryName = service.subCategory.trim();
+      if (subCategoryName.isNotEmpty) {
+        // Si la sous-catégorie n'est pas encore dans la map, ou si elle y est mais sans image,
+        // et que le service actuel a une image pour cette sous-catégorie, on l'ajoute/met à jour.
+        if (!subCategoryDetails.containsKey(subCategoryName) ||
+            (subCategoryDetails[subCategoryName] == null &&
+                service.imagePlaceholderSousCategory != null &&
+                service.imagePlaceholderSousCategory!.isNotEmpty)) {
+          subCategoryDetails[subCategoryName] =
+              service.imagePlaceholderSousCategory;
+        }
+      }
+    }
     final List<String> displayableSubCategoryNames =
-        uniqueSubCategoryNames.where((name) => name.isNotEmpty).toList();
+        subCategoryDetails.keys.toList();
     displayableSubCategoryNames
         .sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
@@ -297,7 +347,8 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       itemCount: displayableSubCategoryNames.length,
       itemBuilder: (context, index) {
         final subCategoryName = displayableSubCategoryNames[index];
-        return _buildSubCategoryCard(subCategoryName);
+        final imagePath = subCategoryDetails[subCategoryName];
+        return _buildSubCategoryCard(subCategoryName, imagePath);
       },
     );
   }

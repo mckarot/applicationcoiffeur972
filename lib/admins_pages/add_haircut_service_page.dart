@@ -1,5 +1,7 @@
+import 'dart:io'; // Importer dart:io pour File
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart'; // Importer image_picker
 import 'package:uuid/uuid.dart'; // Importer le package uuid
 // Importer le modèle HaircutService pour l'enum ServiceCategory si vous souhaitez l'utiliser pour la validation
 // import 'package:soifapp/models/haircut_service.dart';
@@ -18,10 +20,14 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
   final _durationController = TextEditingController();
   final _priceController = TextEditingController();
   final _subCategoryController = TextEditingController();
-  final _imagePlaceholderController = TextEditingController();
+  // Les contrôleurs pour les placeholders d'image sont remplacés par la sélection de fichiers
 
   final List<String> _categories = ['homme', 'femme', 'enfant', 'mixte'];
   String? _selectedCategory; // Initialisé à null pour forcer un choix
+
+  File? _selectedServiceImageFile;
+  File? _selectedSubCategoryImageFile;
+  final ImagePicker _picker = ImagePicker();
 
   bool _isLoading = false;
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -47,17 +53,47 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
 
     setState(() => _isLoading = true);
 
+    String? serviceImagePathForDb;
+    String? subCategoryImagePathForDb;
+    final String serviceId = _idController.text.trim();
+
     try {
+      // Upload de l'image du service si sélectionnée
+      if (_selectedServiceImageFile != null) {
+        final String fileExtension =
+            _selectedServiceImageFile!.path.split('.').last.toLowerCase();
+        final String fileName = '$serviceId-service.$fileExtension';
+        // Assurez-vous que le bucket 'service.images' existe
+        serviceImagePathForDb = 'public/$fileName';
+        await _supabase.storage
+            .from('service.images')
+            .upload(serviceImagePathForDb, _selectedServiceImageFile!);
+      }
+
+      // Upload de l'image de la sous-catégorie si sélectionnée
+      if (_selectedSubCategoryImageFile != null) {
+        final String fileExtension =
+            _selectedSubCategoryImageFile!.path.split('.').last.toLowerCase();
+        // Utiliser un nom de fichier distinctif, par exemple avec un suffixe
+        final String fileName = '$serviceId-subcategory.$fileExtension';
+        subCategoryImagePathForDb = 'public/$fileName';
+        await _supabase.storage
+            .from(
+                'sub.category.images') // Correction: Utilisation du bucket existant
+            .upload(subCategoryImagePathForDb, _selectedSubCategoryImageFile!);
+      }
+
       final serviceData = {
-        'id': _idController.text.trim(),
+        'id': serviceId,
         'name': _nameController.text.trim(),
         'duration_minutes': int.parse(_durationController.text.trim()),
         'price': double.parse(_priceController.text.trim()),
         'sub_category': _subCategoryController.text.trim(),
         'category': _selectedCategory!,
-        'image_placeholder': _imagePlaceholderController.text.trim().isEmpty
-            ? null
-            : _imagePlaceholderController.text.trim(),
+        'image_placeholder':
+            serviceImagePathForDb, // Chemin de l'image du service
+        'image_placeholder_sous_category':
+            subCategoryImagePathForDb, // Chemin de l'image de la sous-catégorie
       };
 
       await _supabase.from('haircut_services').insert(serviceData);
@@ -94,8 +130,30 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
     _durationController.dispose();
     _priceController.dispose();
     _subCategoryController.dispose();
-    _imagePlaceholderController.dispose();
+    // Les contrôleurs pour les placeholders d'image ne sont plus nécessaires
     super.dispose();
+  }
+
+  Future<void> _pickImageForService() async {
+    final XFile? pickedFile =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedServiceImageFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _pickImageForSubCategory() async {
+    final XFile? pickedFile =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedSubCategoryImageFile = File(pickedFile.path);
+      });
+    }
   }
 
   @override
@@ -207,13 +265,64 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _imagePlaceholderController,
-                decoration: const InputDecoration(
-                    labelText: 'Placeholder Image (optionnel)',
-                    hintText:
-                        'Nom de fichier ou identifiant pour une icône/couleur',
-                    border: OutlineInputBorder()),
+              Text("Image du Service (optionnel) :",
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Center(
+                child: Column(
+                  children: [
+                    if (_selectedServiceImageFile != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8.0),
+                          child: Image.file(
+                            _selectedServiceImageFile!,
+                            height: 150,
+                            width: 150,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.image_search_outlined),
+                      label: Text(_selectedServiceImageFile == null
+                          ? 'Choisir une image pour le service'
+                          : 'Changer l\'image du service'),
+                      onPressed: _pickImageForService,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text("Image pour la Sous-Catégorie (optionnel) :",
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Center(
+                child: Column(
+                  children: [
+                    if (_selectedSubCategoryImageFile != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8.0),
+                          child: Image.file(
+                            _selectedSubCategoryImageFile!,
+                            height: 150,
+                            width: 150,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.image_search_outlined),
+                      label: Text(_selectedSubCategoryImageFile == null
+                          ? 'Choisir une image pour la sous-catégorie'
+                          : 'Changer l\'image de la sous-catégorie'),
+                      onPressed: _pickImageForSubCategory,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 30),
               _isLoading

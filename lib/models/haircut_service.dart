@@ -34,6 +34,7 @@ class HaircutService {
   final ServiceCategory category;
   final String
       imagePlaceholder; // Utilisé pour une couleur ou icône de placeholder
+  final String? imagePlaceholderSousCategory; // Nouveau champ
 
   HaircutService({
     required this.id,
@@ -43,6 +44,7 @@ class HaircutService {
     required this.subCategory,
     required this.category,
     required this.imagePlaceholder,
+    this.imagePlaceholderSousCategory, // Ajouté ici
   });
 
   factory HaircutService.fromSupabase(Map<String, dynamic> data) {
@@ -55,6 +57,8 @@ class HaircutService {
       category: serviceCategoryFromString(
           data['category'] as String), // Utilise la fonction publique
       imagePlaceholder: data['image_placeholder'] as String? ?? '',
+      imagePlaceholderSousCategory:
+          data['image_placeholder_sous_category'] as String?, // Nouveau champ
     );
   }
 }

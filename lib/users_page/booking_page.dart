@@ -73,7 +73,7 @@ class Coiffeur {
             .from('photos.coiffeurs')
             .getPublicUrl(trimmedPhotoPath); // Utiliser le chemin nettoyé
         print(
-            'Generated Photo URL for ${profileName}: $publicPhotoUrl'); // <-- ADD THIS LINE
+            'Generated Photo URL for $profileName: $publicPhotoUrl'); // <-- ADD THIS LINE
       } catch (e) {
         print(
             'Erreur lors de la récupération de l\'URL publique pour $trimmedPhotoPath: $e');
