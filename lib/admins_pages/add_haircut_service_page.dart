@@ -363,7 +363,7 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                               fieldTextEditingController, // Utiliser le contrôleur fourni par Autocomplete
                           focusNode: fieldFocusNode,
                           decoration: const InputDecoration(
-                              labelText: 'Sous-catégorie*',
+                              labelText: 'Saisir une nouvelle sous-catégorie',
                               hintText: 'Saisir une nouvelle sous-catégorie',
                               border: OutlineInputBorder()),
                           validator: (value) {

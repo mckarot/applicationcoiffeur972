@@ -8,7 +8,12 @@ import 'package:soifapp/users_page/settings_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:timezone/timezone.dart' as tz; // Importer le package timezone
+import 'package:timezone/timezone.dart' as tz;
+
+import 'widgets/date_selector.dart';
+import 'widgets/service_selector.dart';
+import 'widgets/coiffeur_selector.dart';
+import 'widgets/slot_selector.dart';
 
 // Tes fonctions d'aide existantes (inchangées)
 IconData _getDynamicIconForCoiffeur(String? id) {
@@ -515,7 +520,7 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
-  Widget _buildHorizontalCalendar() {
+  /* Widget _buildHorizontalCalendar() {
     List<Widget> dateWidgets = [];
     DateTime today = DateTime.now();
 
@@ -590,7 +595,7 @@ class _BookingPageState extends State<BookingPage> {
         children: dateWidgets,
       ),
     );
-  }
+  } */
 
   Widget _buildCoiffeurSelector() {
     if (_isLoadingCoiffeurs) {
@@ -729,32 +734,16 @@ class _BookingPageState extends State<BookingPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             // Sélecteur de date
-            Text('1. Choisissez une date :',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary)),
-            const SizedBox(height: 15),
-            _buildHorizontalCalendar(), // Ajout du calendrier horizontal ici
-            const SizedBox(height: 10),
-            Center(
-              child: ElevatedButton.icon(
-                icon: Icon(Icons.calendar_today,
-                    color: Theme.of(context).colorScheme.onPrimary),
-                label: Text(
-                  _selectedDate == null
-                      ? 'Sélectionner une date'
-                      : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                  style:
-                      TextStyle(color: Theme.of(context).colorScheme.onPrimary),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-                onPressed: () => _pickDate(context),
-              ),
+            DateSelector(
+              selectedDate: _selectedDate,
+              onDateSelected: (date) {
+                setState(() {
+                  _selectedDate = date;
+                  _selectedCreneau = null;
+                });
+                _fetchAvailableSlots();
+              },
+              onPickDateTap: _pickDate,
             ),
             const SizedBox(height: 30),
 
@@ -769,53 +758,9 @@ class _BookingPageState extends State<BookingPage> {
             else if (_allServices.isEmpty)
               _buildInfoMessage('Aucun service disponible pour le moment.')
             else ...[
-              Text('2. Choisissez un service :',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary)),
-              const SizedBox(height: 10),
-              InkWell(
+              ServiceSelector(
+                selectedService: _selectedService,
                 onTap: _navigateToSelectServicePage,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-                  decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12.0),
-                    border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _selectedService == null
-                              ? 'Cliquez pour choisir un service'
-                              : '${_selectedService!.name} (${_selectedService!.duration.inMinutes} min)',
-                          style: TextStyle(
-                            color: _selectedService == null
-                                ? Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withOpacity(0.7)
-                                : Theme.of(context).colorScheme.primary,
-                            fontSize: 16,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Icon(Icons.arrow_forward_ios_rounded,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withOpacity(0.7),
-                          size: 18),
-                    ],
-                  ),
-                ),
               ),
             ],
             const SizedBox(height: 30),
@@ -828,7 +773,19 @@ class _BookingPageState extends State<BookingPage> {
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 15),
-              _buildCoiffeurSelector(), // Nouveau sélecteur de coiffeur
+              CoiffeurSelector(
+                coiffeurs: _coiffeurs,
+                selectedCoiffeurId: _selectedCoiffeurId,
+                onCoiffeurSelected: (coiffeurId) {
+                  setState(() {
+                    _selectedCoiffeurId = coiffeurId;
+                    _selectedCreneau = null;
+                  });
+                  _fetchAvailableSlots();
+                },
+                isLoading: _isLoadingCoiffeurs,
+                error: _coiffeursError,
+              ),
               const SizedBox(height: 30)
             ] else if (_selectedDate != null && _selectedService == null)
               _buildInfoMessage('Veuillez d\'abord choisir un service.'),
@@ -844,71 +801,18 @@ class _BookingPageState extends State<BookingPage> {
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 10),
-              // Affichage des créneaux dynamiques
-              if (_isLoadingSlots)
-                const Center(
-                    child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(),
-                ))
-              else if (_slotsError != null)
-                Center(
-                    child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(_slotsError!,
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.error)),
-                ))
-              else if (_dynamicAvailableSlots.isEmpty)
-                _buildInfoMessage(
-                    'Aucun créneau disponible pour cette sélection.')
-              else
-                Wrap(
-                  spacing: 10.0,
-                  runSpacing: 10.0,
-                  children: _dynamicAvailableSlots.map((slotStartTime) {
-                    // slotStartTime est "HH:mm"
-                    final isSelected = _selectedCreneau == slotStartTime;
-                    String displaySlot = slotStartTime; // Par défaut
-                    if (_selectedService != null) {
-                      try {
-                        // Reconstruire "HH:mm - HH:mm" pour l'affichage
-                        final format = DateFormat.Hm('fr_FR');
-                        final start = format.parse(slotStartTime);
-                        final end = start.add(_selectedService!.duration);
-                        displaySlot =
-                            '${format.format(start)} - ${format.format(end)}';
-                      } catch (e) {
-                        print("Erreur parsing slot pour affichage: $e");
-                        // displaySlot reste slotStartTime
-                      }
-                    }
-                    return ChoiceChip(
-                      label: Text(displaySlot,
-                          style: TextStyle(
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.onPrimary
-                                  : Theme.of(context).colorScheme.primary)),
-                      selected: isSelected,
-                      selectedColor: Theme.of(context).colorScheme.primary,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.0),
-                        side: BorderSide(
-                            color:
-                                Theme.of(context).colorScheme.outlineVariant),
-                      ),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          _selectedCreneau = selected
-                              ? slotStartTime
-                              : null; // On stocke "HH:mm"
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
+              SlotSelector(
+                availableSlots: _dynamicAvailableSlots,
+                selectedSlot: _selectedCreneau,
+                onSlotSelected: (slot) {
+                  setState(() {
+                    _selectedCreneau = slot;
+                  });
+                },
+                selectedService: _selectedService,
+                isLoading: _isLoadingSlots,
+                error: _slotsError,
+              ),
               const SizedBox(height: 40),
               Center(
                 child: ElevatedButton.icon(
