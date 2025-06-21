@@ -317,6 +317,21 @@ class _BookingPageState extends State<BookingPage> {
         return;
       }
 
+      // Obtenir l'heure actuelle dans le fuseau horaire du salon
+      final tz.TZDateTime nowInSalon = tz.TZDateTime.now(_salonLocation!);
+      // Vérifier si la date sélectionnée est aujourd'hui
+      final bool isToday = tz.TZDateTime(
+        _salonLocation!,
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+      ).isAtSameMomentAs(tz.TZDateTime(
+        _salonLocation!,
+        nowInSalon.year,
+        nowInSalon.month,
+        nowInSalon.day,
+      ));
+
       // Définir le début et la fin de la journée sélectionnée en UTC pour la requête des RDV existants
       final DateTime dayStartUtc = DateTime.utc(
           selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
@@ -404,6 +419,15 @@ class _BookingPageState extends State<BookingPage> {
             potentialSlotStartSalon
                 .add(serviceDuration)
                 .isAtSameMomentAs(currentAvailabilityEndSalon)) {
+          // Si la date sélectionnée est aujourd'hui, ignorer les créneaux déjà passés
+          if (isToday && potentialSlotStartSalon.isBefore(nowInSalon)) {
+            print(
+                '  Créneau ignoré (passé): ${timeFormatter.format(potentialSlotStartSalon)}');
+            potentialSlotStartSalon = potentialSlotStartSalon
+                .add(const Duration(minutes: slotIncrementMinutes));
+            continue; // Passer au prochain créneau potentiel
+          }
+
           tz.TZDateTime potentialSlotEndSalon =
               potentialSlotStartSalon.add(serviceDuration);
           print(
