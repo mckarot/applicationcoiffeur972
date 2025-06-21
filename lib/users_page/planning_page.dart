@@ -62,7 +62,8 @@ class _PlanningPageState extends State<PlanningPage> {
     // Assurez-vous que initializeTimeZones() a été appelé dans main.dart
     // Définissez ici le fuseau horaire de votre salon
     try {
-      _salonLocation = tz.getLocation('Europe/Paris');
+      _salonLocation =
+          tz.getLocation('America/Martinique'); // Exemple pour Los Angeles
       await _loadClientAppointments();
     } catch (e) {
       print("Erreur lors de l'initialisation du fuseau horaire du salon: $e");

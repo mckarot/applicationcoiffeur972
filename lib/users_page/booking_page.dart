@@ -146,7 +146,7 @@ class _BookingPageState extends State<BookingPage> {
     // Assurez-vous que initializeTimeZones() a été appelé dans main.dart
     try {
       _salonLocation = tz.getLocation(
-          'Europe/Paris'); // Définissez ici le fuseau horaire de votre salon
+          'America/Martinique'); // Définissez ici le fuseau horaire de votre salon
     } catch (e) {
       print("Erreur initialisation fuseau horaire salon (BookingPage): $e");
       if (mounted) {
