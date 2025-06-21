@@ -12,6 +12,7 @@ import 'package:soifapp/users_page/settings_page.dart'; // Importer la page Para
 
 // Classe simple pour représenter un rendez-vous
 class Appointment {
+  final String id;
   final String title;
   final String serviceName;
   final String coiffeurName;
@@ -19,6 +20,7 @@ class Appointment {
   final Duration duration;
 
   Appointment({
+    required this.id,
     required this.title,
     required this.serviceName,
     required this.coiffeurName,
@@ -120,7 +122,9 @@ class _PlanningPageState extends State<PlanningPage> {
                 DateTime.parse(
                     item['start_time'] as String), // Ceci est une heure UTC
                 _salonLocation!),
-            duration: Duration(minutes: item['duration_minutes'] as int),
+            duration: Duration(
+                minutes: int.parse(item['duration_minutes'].toString())),
+            id: item['id'] as String,
           ),
         );
       }
@@ -176,6 +180,65 @@ class _PlanningPageState extends State<PlanningPage> {
         // }
       });
     }
+  }
+
+  Future<void> _deleteAppointment(String appointmentId) async {
+    try {
+      await Supabase.instance.client
+          .from('appointments')
+          .delete()
+          .eq('id', appointmentId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Rendez-vous annulé avec succès.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Recharger les données pour mettre à jour l'UI
+        await _loadClientAppointments();
+      }
+    } catch (e) {
+      if (mounted) {
+        print("Erreur annulation RDV: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'annulation du rendez-vous: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleAppointmentTap(Appointment appointment) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Annuler le rendez-vous ?'),
+          content: Text(
+              'Voulez-vous vraiment annuler ce rendez-vous ?\n\n${appointment.serviceName} avec ${appointment.coiffeurName}\n${DateFormat.yMMMMd('fr_FR').format(appointment.startTime)} à ${DateFormat.Hm('fr_FR').format(appointment.startTime)}'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Retour'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Annuler le RDV'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Fermer la boîte de dialogue
+                _deleteAppointment(appointment.id);
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _onNavBarTap(int index) {
@@ -349,32 +412,36 @@ class _PlanningPageState extends State<PlanningPage> {
                       itemCount: appointmentsForSelectedDay.length,
                       itemBuilder: (context, index) {
                         final appointment = appointmentsForSelectedDay[index];
-                        return Card(
-                          elevation: 2,
-                          margin: const EdgeInsets.symmetric(vertical: 8.0),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                  10)), // La couleur de la carte s'adaptera au thème
-                          // color: Theme.of(context).cardColor, // Explicitement, ou laisser le thème gérer
-                          child: ListTile(
-                            leading: Icon(Icons.event_available,
-                                color: Theme.of(context).colorScheme.primary),
-                            title: Text(
-                              appointment.serviceName,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface),
+                        return GestureDetector(
+                          onTap: () => _handleAppointmentTap(appointment),
+                          child: Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.symmetric(vertical: 8.0),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                    10)), // La couleur de la carte s'adaptera au thème
+                            // color: Theme.of(context).cardColor, // Explicitement, ou laisser le thème gérer
+                            child: ListTile(
+                              leading: Icon(Icons.event_available,
+                                  color: Theme.of(context).colorScheme.primary),
+                              title: Text(
+                                appointment.serviceName,
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface),
+                              ),
+                              subtitle: Text(
+                                "${DateFormat.Hm('fr_FR').format(appointment.startTime)} - ${DateFormat.Hm('fr_FR').format(appointment.endTime)}\nAvec : ${appointment.coiffeurName}",
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.7)),
+                              ),
+                              isThreeLine: true,
                             ),
-                            subtitle: Text(
-                              "${DateFormat.Hm('fr_FR').format(appointment.startTime)} - ${DateFormat.Hm('fr_FR').format(appointment.endTime)}\nAvec : ${appointment.coiffeurName}",
-                              style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withOpacity(0.7)),
-                            ),
-                            isThreeLine: true,
                           ),
                         );
                       },

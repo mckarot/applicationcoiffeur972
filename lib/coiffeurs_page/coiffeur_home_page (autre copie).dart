@@ -126,6 +126,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
             startTime: tz.TZDateTime.from(
                 DateTime.parse(item['start_time'] as String), _salonLocation!),
             duration: Duration(minutes: item['duration_minutes'] as int),
+            id: null,
           ),
         );
       }

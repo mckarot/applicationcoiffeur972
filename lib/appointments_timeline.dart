@@ -6,11 +6,13 @@ import 'package:timezone/timezone.dart' as tz; // Import timezone
 class AppointmentsTimeline extends StatelessWidget {
   final List<Appointment> appointments;
   final tz.Location salonLocation;
+  final void Function(Appointment)? onAppointmentTap;
 
   const AppointmentsTimeline({
     super.key,
     required this.appointments,
     required this.salonLocation,
+    this.onAppointmentTap,
   });
 
   @override
@@ -102,36 +104,41 @@ class AppointmentsTimeline extends StatelessWidget {
                       20.0,
                       totalHeight -
                           topOffset), // Clamp height to not overflow timeline
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .secondary
-                          .withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.secondary,
-                        width: 1.0,
+                  child: GestureDetector(
+                    onTap: onAppointmentTap != null
+                        ? () => onAppointmentTap!(appointment)
+                        : null,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .secondary
+                            .withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.secondary,
+                          width: 1.0,
+                        ),
                       ),
-                    ),
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        Text(
-                          appointment.title,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${DateFormat.Hm('fr_FR').format(appointment.startTime)} - ${DateFormat.Hm('fr_FR').format(appointment.endTime)}',
-                          style: TextStyle(
-                              fontSize: 12.0, color: Colors.grey[700]),
-                        ),
-                      ],
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Text(
+                            appointment.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${DateFormat.Hm('fr_FR').format(appointment.startTime)} - ${DateFormat.Hm('fr_FR').format(appointment.endTime)}',
+                            style: TextStyle(
+                                fontSize: 12.0, color: Colors.grey[700]),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );

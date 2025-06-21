@@ -118,12 +118,14 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
 
         loadedAppointments.add(
           Appointment(
+            id: item['id'] as String, // ID is a UUID string
             title: 'RDV $clientName - $serviceName',
             serviceName: serviceName,
             coiffeurName: _coiffeurName!,
             startTime: tz.TZDateTime.from(
                 DateTime.parse(item['start_time'] as String), _salonLocation!),
-            duration: Duration(minutes: item['duration_minutes'] as int),
+            duration: Duration(
+                minutes: int.parse(item['duration_minutes'].toString())),
           ),
         );
       }
@@ -174,6 +176,63 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
         _focusedDay = focusedDay;
       });
     }
+  }
+
+  Future<void> _deleteAppointment(String appointmentId) async {
+    try {
+      await _supabase.from('appointments').delete().eq('id', appointmentId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Rendez-vous supprimé avec succès.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Recharger les données pour mettre à jour l'UI
+        await _fetchCoiffeurDetailsAndAppointments();
+      }
+    } catch (e) {
+      if (mounted) {
+        print("Erreur suppression RDV: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la suppression du rendez-vous: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleAppointmentTap(Appointment appointment) {
+    // La suppression est maintenant autorisée pour le coiffeur et l'administrateur.
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Supprimer le rendez-vous ?'),
+          content: Text(
+              'Voulez-vous vraiment supprimer ce rendez-vous ?\n\n${appointment.title}\n${DateFormat.yMMMMd('fr_FR').format(appointment.startTime)} à ${DateFormat.Hm('fr_FR').format(appointment.startTime)}'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annuler'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Supprimer'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Fermer la boîte de dialogue
+                _deleteAppointment(appointment.id);
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -290,6 +349,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
                           : AppointmentsTimeline(
                               appointments: appointmentsForSelectedDay,
                               salonLocation: _salonLocation!,
+                              onAppointmentTap: _handleAppointmentTap,
                             ),
                     ),
                   ],
