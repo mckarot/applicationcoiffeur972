@@ -1,32 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:soifapp/users_page/planning_page.dart'; // Pour la classe Appointment
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:timezone/timezone.dart' as tz;
-
-// Modèle de données pour un rendez-vous (placé ici pour l'autonomie du fichier)
-class Appointment {
-  final String title;
-  final String serviceName;
-  final String coiffeurName;
-  final tz.TZDateTime startTime;
-  final Duration duration;
-
-  Appointment({
-    required this.title,
-    required this.serviceName,
-    required this.coiffeurName,
-    required this.startTime,
-    required this.duration,
-  });
-
-  tz.TZDateTime get endTime => startTime.add(duration);
-
-  @override
-  String toString() =>
-      '$title: ${DateFormat('HH:mm').format(startTime)} - ${DateFormat('HH:mm').format(endTime)}';
-}
 
 class CoiffeurHomePage extends StatefulWidget {
   final String? coiffeurUserIdFromAdmin;
@@ -121,6 +99,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
         _coiffeurName =
             profileResponse['nom'] as String? ?? _coiffeurName ?? 'Coiffeur';
       }
+      // Si widget.coiffeurNameFromAdmin est fourni, _coiffeurName est déjà initialisé.
 
       // Récupérer les rendez-vous du coiffeur
       final appointmentsResponse = await _supabase
@@ -143,7 +122,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
           Appointment(
             title: 'RDV $clientName - $serviceName',
             serviceName: serviceName,
-            coiffeurName: _coiffeurName!,
+            coiffeurName: _coiffeurName!, // Le nom du coiffeur actuel
             startTime: tz.TZDateTime.from(
                 DateTime.parse(item['start_time'] as String), _salonLocation!),
             duration: Duration(minutes: item['duration_minutes'] as int),
@@ -211,6 +190,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
                 ? 'Planning Coiffeur'
                 : 'Mon Planning')
             : 'Planning - $_coiffeurName'),
+        // Ne pas afficher le bouton de déconnexion si l'admin consulte
         actions: widget.coiffeurUserIdFromAdmin == null
             ? const [LogoutButton()]
             : [],
@@ -251,6 +231,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
                       eventLoader: _getEventsForDay,
                       startingDayOfWeek: StartingDayOfWeek.monday,
                       calendarStyle: CalendarStyle(
+                        // Styles adaptés de PlanningPage
                         selectedDecoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.primary,
                           shape: BoxShape.circle,
@@ -268,6 +249,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
                         ),
                       ),
                       headerStyle: HeaderStyle(
+                        // Styles adaptés de PlanningPage
                         formatButtonTextStyle: TextStyle(
                             color: Theme.of(context).colorScheme.onPrimary),
                         formatButtonDecoration: BoxDecoration(
@@ -330,233 +312,198 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
     );
   }
 
+  // Fichier modifié pour intégrer un design de timeline moderne inspiré de `DailyTimelineItem`
+// Reste compatible avec ton système actuel : CoiffeurHomePage + planning par heure avec ligne actuelle + événements stylés
+// Voir `_buildTimelineSlot()` et `_buildTimelineView()` pour les changements principaux
+
+// [Pas besoin de modifier le haut de fichier si ce n'est que les imports sont conservés]
+// Tu peux coller l'intégralité du fichier de ta question ici, en remplacant les deux fonctions ci-dessous :
+
   Widget _buildTimelineView(List<Appointment> appointments, DateTime day) {
     const int startHour = 8;
     const int endHour = 20;
-    const double slotHeight = 130.0; // Hauteur augmentée pour plus d'espace
-    const double listViewHorizontalPadding = 16.0;
-    const double listViewVerticalPadding = 12.0;
+    const double slotHeight = 120.0;
     const double timeColumnWidth = 80.0;
+    const double verticalPadding = 12.0;
 
     final now = tz.TZDateTime.now(_salonLocation!);
-    final bool isToday = isSameDay(now, day);
+    final bool isToday =
+        now.year == day.year && now.month == day.month && now.day == day.day;
 
-    double? currentTimeOffset;
+    double? currentMinuteFraction;
     if (isToday && now.hour >= startHour && now.hour < endHour) {
-      final minutesFromStart = (now.hour - startHour) * 60 + now.minute;
-      currentTimeOffset = minutesFromStart * (slotHeight / 60);
+      currentMinuteFraction = now.minute / 60.0;
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (currentTimeOffset != null && _timelineScrollController.hasClients) {
-        final double scrollTarget = (currentTimeOffset - 100)
-            .clamp(0, _timelineScrollController.position.maxScrollExtent);
+      if (isToday &&
+          currentMinuteFraction != null &&
+          _timelineScrollController.hasClients &&
+          _timelineScrollController.position.hasContentDimensions) {
+        final double offset = ((now.hour - startHour) * slotHeight) +
+            (slotHeight * currentMinuteFraction!) -
+            100;
+        final double maxScroll =
+            _timelineScrollController.position.maxScrollExtent;
+        final scrollTarget = offset.clamp(0.0, maxScroll);
+
         _timelineScrollController.animateTo(
           scrollTarget,
-          duration: const Duration(milliseconds: 600),
+          duration: const Duration(milliseconds: 500),
           curve: Curves.easeInOut,
         );
       }
     });
 
-    List<Widget> timelineSlots = [];
+    List<Widget> timelineItems = [];
     for (int hour = startHour; hour < endHour; hour++) {
       final slotTime =
           tz.TZDateTime(_salonLocation!, day.year, day.month, day.day, hour);
-      final appointmentsInSlot = appointments
-          .where((app) => app.startTime.hour == hour)
-          .toList()
-        ..sort((a, b) => a.startTime.compareTo(b.startTime));
+      final appointmentsForHour = appointments
+          .where((app) => app.startTime.hour == slotTime.hour)
+          .toList();
 
-      timelineSlots.add(_buildTimelineSlot(
-        slotTime,
-        appointmentsInSlot,
-        isFirst: hour == startHour,
-        isLast: hour == endHour - 1,
-        slotHeight: slotHeight,
-        timeColumnWidth: timeColumnWidth,
-      ));
+      timelineItems.add(
+        Stack(
+          children: [
+            _buildModernTimelineSlot(
+                slotTime,
+                appointmentsForHour,
+                hour == startHour,
+                hour == endHour - 1,
+                isToday && hour == now.hour ? currentMinuteFraction : null),
+          ],
+        ),
+      );
     }
 
-    return Stack(
-      children: [
-        ListView(
-          controller: _timelineScrollController,
-          padding: const EdgeInsets.symmetric(
-              horizontal: listViewHorizontalPadding,
-              vertical: listViewVerticalPadding),
-          children: timelineSlots,
-        ),
-        // Ligne horizontale de l'heure actuelle
-        if (currentTimeOffset != null)
-          Positioned(
-            top: currentTimeOffset + listViewVerticalPadding,
-            left: listViewHorizontalPadding + (timeColumnWidth / 2),
-            right: listViewHorizontalPadding,
-            child: Container(height: 2.0, color: Colors.redAccent),
-          ),
-        // Point indicateur de l'heure actuelle
-        if (currentTimeOffset != null)
-          Positioned(
-              top: currentTimeOffset +
-                  listViewVerticalPadding -
-                  5, // Centre le point sur la ligne
-              left: listViewHorizontalPadding + (timeColumnWidth / 2) - 5,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: Colors.redAccent,
-                  shape: BoxShape.circle,
-                ),
-              )),
-      ],
+    return ListView(
+      controller: _timelineScrollController,
+      padding: const EdgeInsets.only(bottom: 20.0),
+      children: timelineItems,
     );
   }
 
-  Widget _buildTimelineSlot(
-    tz.TZDateTime slotTime,
-    List<Appointment> appointments, {
-    required bool isFirst,
-    required bool isLast,
-    required double slotHeight,
-    required double timeColumnWidth,
-  }) {
-    final timeFormatter = DateFormat.Hm('fr_FR');
-    final theme = Theme.of(context);
-    final bool hasEvents = appointments.isNotEmpty;
+  Widget _buildModernTimelineSlot(DateTime time, List<Appointment> events,
+      bool isFirst, bool isLast, double? currentMinuteFraction) {
+    final ThemeData theme = Theme.of(context);
+    final timeLabel = DateFormat.Hm('fr_FR').format(time);
+
+    final bool hasEvent = events.isNotEmpty;
+    final Color indicatorColor =
+        hasEvent ? theme.primaryColor : Colors.grey[400]!;
+    final Color lineColor =
+        hasEvent ? theme.primaryColor.withOpacity(0.6) : Colors.grey[300]!;
 
     return SizedBox(
-      height: slotHeight,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      height: 120.0,
+      child: Stack(
         children: [
-          // Colonne de la timeline (ligne, point, heure)
-          SizedBox(
-            width: timeColumnWidth,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.topCenter,
-              children: [
-                // Ligne verticale
-                Positioned.fill(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          width: 2,
-                          color: isFirst
-                              ? Colors.transparent
-                              : theme.dividerColor.withOpacity(0.5),
-                        ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 80.0,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        width: 2.0,
+                        color: isFirst ? Colors.transparent : lineColor,
                       ),
-                      Expanded(
-                        child: Container(
-                          width: 2,
-                          color: isLast
-                              ? Colors.transparent
-                              : theme.dividerColor.withOpacity(0.5),
-                        ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.all(hasEvent ? 8.0 : 4.0),
+                      decoration: BoxDecoration(
+                        color: indicatorColor,
+                        shape: BoxShape.circle,
+                        boxShadow: hasEvent
+                            ? [
+                                BoxShadow(
+                                    color: indicatorColor.withOpacity(0.4),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2))
+                              ]
+                            : null,
                       ),
-                    ],
-                  ),
-                ),
-                // Point indicateur de l'heure
-                Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: hasEvents
-                        ? theme.primaryColor
-                        : theme.scaffoldBackgroundColor,
-                    border: Border.all(
-                      color:
-                          hasEvents ? theme.primaryColor : theme.dividerColor,
-                      width: 2,
                     ),
-                  ),
-                ),
-                // Texte de l'heure
-                Positioned(
-                  top: 24,
-                  child: Text(
-                    timeFormatter.format(slotTime),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                    Expanded(
+                      child: Container(
+                        width: 2.0,
+                        color: isLast ? Colors.transparent : lineColor,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          // Colonne des événements (cartes de RDV)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4.0, right: 4.0),
-              child: hasEvents
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: appointments.map((appointment) {
-                        final clientNameDisplay = appointment.title
-                                    .startsWith("RDV ") &&
-                                appointment.title.contains(" - ")
-                            ? appointment.title
-                                .substring(4, appointment.title.indexOf(" - "))
-                            : "Client";
-//pour modifier les cards
-                        return Card(
-                          surfaceTintColor: Colors.grey[500],
-                          elevation: 2.0,
-                          margin: const EdgeInsets.only(bottom: 10.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          color: theme.colorScheme.surfaceContainer,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${appointment.serviceName} pour $clientNameDisplay',
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.onSurface,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.access_time_filled_rounded,
-                                      size: 16,
-                                      color: theme.colorScheme.secondary,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '${timeFormatter.format(appointment.startTime)} - ${timeFormatter.format(appointment.endTime)}',
-                                      style:
-                                          theme.textTheme.bodyMedium?.copyWith(
-                                        color: theme.colorScheme.secondary,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0, vertical: 16.0),
+                  child: hasEvent
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: events
+                              .map((event) => Card(
+                                    elevation: 2,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    color: theme.primaryColor.withOpacity(0.05),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.event,
+                                                  size: 20,
+                                                  color: theme.primaryColor),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                event.serviceName,
+                                                style:
+                                                    theme.textTheme.titleMedium,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${DateFormat.Hm('fr_FR').format(event.startTime)} - ${DateFormat.Hm('fr_FR').format(event.endTime)}',
+                                            style: theme.textTheme.bodySmall,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                                  ))
+                              .toList(),
+                        )
+                      : Text(
+                          'Libre à $timeLabel',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontStyle: FontStyle.italic,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                        );
-                      }).toList(),
-                    )
-                  : Container(), // Espace vide pour les créneaux libres
-            ),
+                        ),
+                ),
+              ),
+            ],
           ),
+          if (currentMinuteFraction != null)
+            Positioned(
+              top: 120.0 * currentMinuteFraction,
+              left: 80.0,
+              right: 0,
+              child: Container(
+                height: 2,
+                color: Colors.redAccent,
+              ),
+            ),
         ],
       ),
     );
   }
+// Fin de la modification du fichier
 }
