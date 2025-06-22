@@ -233,16 +233,20 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
               TextFormField(
                 controller: _durationController,
                 decoration: const InputDecoration(
-                    labelText: 'Durée (minutes)*',
+                    labelText:
+                        'Durée (minutes) *Attention* Durée minimale 30 min',
                     border: OutlineInputBorder()),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Veuillez entrer la durée.';
                   }
-                  if (int.tryParse(value.trim()) == null ||
-                      int.parse(value.trim()) <= 0) {
-                    return 'Veuillez entrer une durée valide (nombre entier > 0).';
+                  final duration = int.tryParse(value.trim());
+                  if (duration == null) {
+                    return 'Veuillez entrer un nombre entier valide.';
+                  }
+                  if (duration < 30) {
+                    return 'La durée minimale doit être de 30 minutes.';
                   }
                   return null;
                 },

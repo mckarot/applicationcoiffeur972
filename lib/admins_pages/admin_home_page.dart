@@ -4,6 +4,8 @@ import 'package:soifapp/admins_pages/add_haircut_service_page.dart'; // Importer
 import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer pour voir le planning
 import 'package:soifapp/admins_pages/admin_delete_sub_category_page.dart'; // Importer la nouvelle page
 import 'package:soifapp/admins_pages/admin_manage_services_page.dart'; // Importer la page de gestion des services
+import 'package:soifapp/admins_pages/admin_delete_coiffeur_page.dart';
+import 'package:soifapp/sign_up_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -104,6 +106,105 @@ class _AdminHomePageState extends State<AdminHomePage> {
     }
   }
 
+  Widget _buildActionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color? iconColor,
+  }) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 2.0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 40, color: iconColor ?? theme.colorScheme.primary),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardGrid(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      children: [
+        _buildActionCard(
+            context: context,
+            icon: Icons.person_add_alt_1_outlined,
+            title: 'Créer Utilisateur',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (context) => const SignUpPage()))),
+        _buildActionCard(
+            context: context,
+            icon: Icons.group_add_outlined,
+            title: 'Gérer Demandes',
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const ManageCoiffeursPage()))),
+        _buildActionCard(
+            context: context,
+            icon: Icons.add_shopping_cart_outlined,
+            title: 'Ajouter Service',
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AddHaircutServicePage()))),
+        _buildActionCard(
+            context: context,
+            icon: Icons.list_alt_outlined,
+            title: 'Gérer Services',
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminManageServicesPage()))),
+        _buildActionCard(
+            context: context,
+            icon: Icons.delete_sweep_outlined,
+            title: 'Gérer Catégories',
+            iconColor: Colors.redAccent,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminDeleteSubCategoryPage()))),
+        _buildActionCard(
+            context: context,
+            icon: Icons.person_remove_outlined,
+            title: 'Supprimer Coiffeur',
+            iconColor: Colors.red,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminDeleteCoiffeurPage()))),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -116,70 +217,22 @@ class _AdminHomePageState extends State<AdminHomePage> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.group_add_outlined),
-              label: const Text('Gérer les Demandes Coiffeurs'),
-              onPressed: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const ManageCoiffeursPage()));
-              },
-              style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
-            ),
-            const SizedBox(height: 16), // Espace entre les boutons
-            ElevatedButton.icon(
-              icon: const Icon(Icons
-                  .add_shopping_cart_outlined), // Icône pour ajouter un service
-              label: const Text('Ajouter un Service de Coiffure'),
-              onPressed: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AddHaircutServicePage()));
-              },
-              style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
+            Text(
+              'Tableau de bord',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.list_alt_outlined),
-              label: const Text('Gérer les Services Existants'),
-              onPressed: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AdminManageServicesPage()));
-              },
-              style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
-            ),
+            _buildDashboardGrid(context),
+            const SizedBox(height: 24),
+            const Divider(),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.delete_sweep_outlined,
-                  color: Colors.redAccent),
-              label: const Text('Supprimer une Sous-Catégorie'),
-              onPressed: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            const AdminDeleteSubCategoryPage()));
-              },
-              style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
-            ),
-            const SizedBox(height: 20),
-            Text("Coiffeurs Actifs :",
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(color: Theme.of(context).colorScheme.primary)),
+            Text("Coiffeurs Actifs",
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             _buildActiveCoiffeursList(),
           ],
@@ -208,12 +261,25 @@ class _AdminHomePageState extends State<AdminHomePage> {
       itemBuilder: (context, index) {
         final coiffeur = _activeCoiffeurs[index];
         return Card(
-          margin: const EdgeInsets.symmetric(vertical: 5),
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ListTile(
-            leading: Icon(Icons.person_outline,
-                color: Theme.of(context).colorScheme.secondary),
-            title: Text(coiffeur.name),
-            trailing: const Icon(Icons.arrow_forward_ios_rounded),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            leading: CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              child: Icon(
+                Icons.person_outline,
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
+              ),
+            ),
+            title: Text(coiffeur.name,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text("Voir le planning"),
+            trailing: Icon(Icons.arrow_forward_ios_rounded,
+                size: 18, color: Theme.of(context).colorScheme.primary),
             onTap: () {
               Navigator.push(
                 context,

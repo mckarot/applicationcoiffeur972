@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:soifapp/users_page/booking_page.dart'; // Importer la nouvelle page de réservation
-import 'package:soifapp/sign_up_page.dart'; // Importer la page d'inscription
+import 'package:soifapp/users_sign_up_page.dart'; // Importer la page d'inscription utilisateur
 import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer la page d'accueil coiffeur
 import 'package:soifapp/admins_pages/admin_home_page.dart'; // Importer la page d'accueil admin
 
@@ -33,10 +33,20 @@ class _AuthPageState extends State<AuthPage> {
             .from('profiles')
             .select('role')
             .eq('id', userId)
-            .single();
-        final role = response['role'] ?? 'user';
+            .maybeSingle();
 
         if (!mounted) return;
+
+        // Si le profil n'est pas trouvé (response est null), il peut s'agir d'un nouvel utilisateur
+        // dont le profil est en cours de création. On attend le prochain événement d'authentification
+        // (comme après la confirmation de l'e-mail) au lieu de planter.
+        // Cela résout la "race condition" lors de l'inscription.
+        if (response == null) {
+          // On pourrait logger cet événement, mais pour l'instant, on arrête l'exécution ici pour éviter l'erreur.
+          return;
+        }
+
+        final role = response['role'] ?? 'user';
 
         if (role == 'user') {
           Navigator.of(context).pushReplacement(
@@ -207,7 +217,7 @@ class _AuthPageState extends State<AuthPage> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (context) => const SignUpPage()),
+                            builder: (context) => const UsersSignUpPage()),
                       );
                     },
                     child: Text(
