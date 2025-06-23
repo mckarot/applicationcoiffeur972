@@ -5,7 +5,7 @@ import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer pou
 import 'package:soifapp/admins_pages/admin_delete_sub_category_page.dart'; // Importer la nouvelle page
 import 'package:soifapp/admins_pages/admin_manage_services_page.dart'; // Importer la page de gestion des services
 import 'package:soifapp/admins_pages/admin_delete_coiffeur_page.dart';
-import 'package:soifapp/sign_up_page.dart';
+import 'package:soifapp/admins_pages/sign_up_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -162,7 +162,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         _buildActionCard(
             context: context,
             icon: Icons.group_add_outlined,
-            title: 'Gérer Demandes',
+            title: 'Gérer les coiffeurs',
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
