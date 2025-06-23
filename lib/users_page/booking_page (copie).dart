@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:soifapp/users_page/coiffeur_details_page.dart';
 import 'package:soifapp/users_page/planning_page.dart';
 import 'package:soifapp/users_page/salon_location_page.dart';
 import 'package:soifapp/users_page/select_service_page.dart';
@@ -570,22 +569,12 @@ class _BookingPageState extends State<BookingPage> {
           final coiffeur = _coiffeurs[index];
           final isSelected = _selectedCoiffeurId == coiffeur.id;
           return GestureDetector(
-            onTap: () async {
-              final selectedId = await Navigator.push<String>(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CoiffeurDetailsPage(coiffeur: coiffeur),
-                ),
-              );
-
-              // Si un coiffeur a été choisi depuis la page de détails
-              if (selectedId != null && mounted) {
-                setState(() {
-                  _selectedCoiffeurId = selectedId;
-                  _selectedCreneau = null;
-                });
-                _fetchAvailableSlots(); // Mettre à jour les créneaux
-              }
+            onTap: () {
+              setState(() {
+                _selectedCoiffeurId = coiffeur.id;
+                _selectedCreneau = null;
+              });
+              _fetchAvailableSlots(); // Mettre à jour les créneaux si le coiffeur change
             },
             child: Padding(
               padding:
@@ -731,7 +720,19 @@ class _BookingPageState extends State<BookingPage> {
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 15),
-              _buildCoiffeurSelector(),
+              CoiffeurSelector(
+                coiffeurs: _coiffeurs,
+                selectedCoiffeurId: _selectedCoiffeurId,
+                onCoiffeurSelected: (coiffeurId) {
+                  setState(() {
+                    _selectedCoiffeurId = coiffeurId;
+                    _selectedCreneau = null;
+                  });
+                  _fetchAvailableSlots();
+                },
+                isLoading: _isLoadingCoiffeurs,
+                error: _coiffeursError,
+              ),
               const SizedBox(height: 30)
             ] else if (_selectedDate != null && _selectedService == null)
               _buildInfoMessage('Veuillez d\'abord choisir un service.'),
