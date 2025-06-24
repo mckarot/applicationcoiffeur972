@@ -298,6 +298,18 @@ class _BookingPageState extends State<BookingPage> {
       final selectedDate = _selectedDate!;
       final serviceDuration = _selectedService!.duration;
 
+      if (_salonLocation == null) {
+        print(
+            "ERREUR: _salonLocation est null dans _fetchAvailableSlots. Impossible de calculer les créneaux.");
+        setState(() {
+          _slotsError =
+              "Erreur de configuration du fuseau horaire. Impossible de charger les créneaux.";
+          _isLoadingSlots = false;
+          _dynamicAvailableSlots = [];
+        });
+        return;
+      }
+
       // Obtenir l'heure actuelle dans le fuseau horaire du salon
       final tz.TZDateTime nowInSalon = tz.TZDateTime.now(_salonLocation!);
       // Vérifier si la date sélectionnée est aujourd'hui
@@ -319,6 +331,7 @@ class _BookingPageState extends State<BookingPage> {
       final DateTime dayEndUtc = dayStartUtc
           .add(const Duration(days: 1))
           .subtract(const Duration(milliseconds: 1));
+      // 1. Récupérer les horaires de travail récurrents pour le coiffeur et le jour de la semaine sélectionné
       final selectedDayOfWeek =
           selectedDate.weekday; // Lundi = 1, ..., Dimanche = 7
       final workSchedulesResponse = await _supabaseClient
@@ -334,6 +347,7 @@ class _BookingPageState extends State<BookingPage> {
 
       final List<Map<String, dynamic>> workSchedulesData =
           List<Map<String, dynamic>>.from(workSchedulesResponse);
+      // 2. Récupérer les rendez-vous existants pour ce coiffeur ce jour-là
       final appointmentsResponse = await _supabaseClient
           .from('appointments')
           .select('start_time, end_time')
@@ -344,24 +358,6 @@ class _BookingPageState extends State<BookingPage> {
 
       final List<Map<String, dynamic>> appointmentsData =
           List<Map<String, dynamic>>.from(appointmentsResponse);
-
-// 3. Récupérer les absences pour ce coiffeur ce jour-là
-      final absencesResponse = await _supabaseClient
-          .from('coiffeur_absences')
-          .select('start_time, end_time')
-          .eq('coiffeur_user_id', coiffeurId)
-          .lt(
-              'start_time',
-              dayEndUtc
-                  .toIso8601String()) // L'absence commence avant la fin de la journée
-          .gt(
-              'end_time',
-              dayStartUtc
-                  .toIso8601String()); // L'absence se termine après le début de la journée
-
-      final List<Map<String, dynamic>> absencesData =
-          List<Map<String, dynamic>>.from(absencesResponse);
-
       final List<String> calculatedSlots = [];
       final DateFormat timeFormatter =
           DateFormat.Hm('fr_FR'); // Pour formater l'heure
@@ -430,33 +426,16 @@ class _BookingPageState extends State<BookingPage> {
             // Condition de chevauchement: (StartA < EndB) and (EndA > StartB)
             if (potentialSlotStartSalon.isBefore(rdvEndSalon) &&
                 potentialSlotEndSalon.isAfter(rdvStartSalon)) {
+              print(
+                  '    -> Chevauche RDV existant (salon): ${timeFormatter.format(rdvStartSalon)} - ${timeFormatter.format(rdvEndSalon)}');
               overlapsWithExistingAppointment = true;
               break;
             }
           }
-          // Vérifier si ce créneau potentiel chevauche une absence
-          bool overlapsWithAbsence = false;
+
           if (!overlapsWithExistingAppointment) {
-            for (var absence in absencesData) {
-              final DateTime absenceStartTimeUtc =
-                  DateTime.parse(absence['start_time'] as String);
-              final DateTime absenceEndTimeUtc =
-                  DateTime.parse(absence['end_time'] as String);
-
-              final tz.TZDateTime absenceStartSalon =
-                  tz.TZDateTime.from(absenceStartTimeUtc, _salonLocation!);
-              final tz.TZDateTime absenceEndSalon =
-                  tz.TZDateTime.from(absenceEndTimeUtc, _salonLocation!);
-
-              if (potentialSlotStartSalon.isBefore(absenceEndSalon) &&
-                  potentialSlotEndSalon.isAfter(absenceStartSalon)) {
-                overlapsWithAbsence = true;
-                break;
-              }
-            }
-          }
-
-          if (!overlapsWithExistingAppointment && !overlapsWithAbsence) {
+            print(
+                '    -> Créneau VALIDE ajouté (salon): ${timeFormatter.format(potentialSlotStartSalon)}');
             // Le créneau est valide, ajouter l'heure de début formatée
             calculatedSlots.add(timeFormatter.format(
                 potentialSlotStartSalon)); // On stocke "HH:mm" basé sur l'heure du salon
@@ -467,6 +446,7 @@ class _BookingPageState extends State<BookingPage> {
               .add(const Duration(minutes: slotIncrementMinutes));
         }
       }
+      print('Créneaux calculés (avant dédoublonnage et tri): $calculatedSlots');
 
       if (mounted) {
         setState(() {
@@ -475,6 +455,7 @@ class _BookingPageState extends State<BookingPage> {
           _isLoadingSlots = false;
         });
       }
+      print('--- Fin _fetchAvailableSlots ---');
     } catch (e, stacktrace) {
       print('Erreur lors de la récupération des créneaux: $e');
       print(stacktrace);
