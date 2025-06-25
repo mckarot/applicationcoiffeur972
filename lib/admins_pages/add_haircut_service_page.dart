@@ -173,6 +173,48 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
     super.dispose();
   }
 
+  // Helper method for consistent input field styling
+  InputDecoration _buildInputDecoration({
+    required String label,
+    String? hint,
+    IconData? prefixIcon,
+  }) {
+    final theme = Theme.of(context);
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+      hintText: hint,
+      hintStyle:
+          TextStyle(color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7)),
+      prefixIcon: prefixIcon != null
+          ? Icon(prefixIcon, color: theme.colorScheme.primary)
+          : null,
+      filled: true,
+      fillColor: theme.colorScheme.surface.withOpacity(0.5),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.error, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
   Future<void> _pickImageForService() async {
     final XFile? pickedFile =
         await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
@@ -197,6 +239,7 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text("Ajouter un Service"),
@@ -210,18 +253,20 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
             children: <Widget>[
               TextFormField(
                 controller: _idController,
+                cursorColor: theme.colorScheme.primary,
                 readOnly: true, // Important: ID généré et non modifiable
-                decoration: const InputDecoration(
-                  labelText: 'ID du Service (automatique)',
-                  border: OutlineInputBorder(),
-                ),
+                decoration:
+                    _buildInputDecoration(label: 'ID du Service (automatique)'),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 // Pas de validateur nécessaire car généré et non modifiable
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                    labelText: 'Nom du Service*', border: OutlineInputBorder()),
+                cursorColor: theme.colorScheme.primary,
+                decoration: _buildInputDecoration(
+                    label: 'Nom du Service*', prefixIcon: Icons.cut),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Veuillez entrer le nom du service.';
@@ -229,17 +274,23 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _durationController,
-                decoration: const InputDecoration(
-                    labelText:
-                        'Durée (minutes) *Attention* Durée minimale 30 min',
-                    border: OutlineInputBorder()),
+                cursorColor: theme.colorScheme.primary,
+                decoration: _buildInputDecoration(
+                  label: 'Durée (minutes) *',
+                  hint: 'Durée minimale 30 min',
+                  prefixIcon: Icons.timer_outlined,
+                ),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Veuillez entrer la durée.';
+                  }
+                  if (value.contains(',')) {
+                    return 'Veuillez utiliser un point (.) pour les décimales, pas une virgule (,).';
                   }
                   final duration = int.tryParse(value.trim());
                   if (duration == null) {
@@ -251,13 +302,16 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _priceController,
-                decoration: const InputDecoration(
-                    labelText: 'Prix (€)*', border: OutlineInputBorder()),
+                cursorColor: theme.colorScheme.primary,
+                decoration: _buildInputDecoration(
+                    label: 'Prix (€)*', prefixIcon: Icons.euro_symbol),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
+                // Permet les décimales
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Veuillez entrer le prix.';
@@ -269,13 +323,14 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Catégorie*',
-                  border: OutlineInputBorder(),
+                decoration: _buildInputDecoration(
+                  label: 'Catégorie*',
+                  prefixIcon: Icons.category_outlined,
                 ),
+                dropdownColor: theme.colorScheme.surfaceContainer,
                 hint: const Text('Sélectionnez une catégorie'),
                 items: _categories.map((String category) {
                   return DropdownMenuItem<String>(
@@ -289,7 +344,7 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                     _selectedCategory = newValue;
                   });
                 },
-                validator: (value) => value == null
+                validator: (value) => value == null || value.isEmpty
                     ? 'Veuillez sélectionner une catégorie.'
                     : null,
               ),
@@ -300,16 +355,20 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
                       value: _selectedSubCategoryInDropdown,
-                      decoration: const InputDecoration(
-                        labelText:
-                            'Choisir une sous-catégorie existante (optionnel)',
-                        border: OutlineInputBorder(),
+                      decoration: _buildInputDecoration(
+                        label: 'Choisir une sous-catégorie existante',
+                        prefixIcon: Icons.list_alt,
                       ),
-                      hint: const Text(
-                          'Sélectionner pour remplir le champ ci-dessous'),
+                      hint: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: const Text(
+                            'Sélectionner pour remplir le champ ci-dessous'),
+                      ),
                       items: _existingSubCategories.map((String subCategory) {
+                        // Ensure the dropdown items are styled consistently
                         return DropdownMenuItem<String>(
                           value: subCategory,
                           child: Text(subCategory),
@@ -323,7 +382,7 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                           // _formKey.currentState?.validate();
                         });
                       },
-                      // Pas de validateur ici, car le champ Autocomplete est le champ principal
+                      dropdownColor: theme.colorScheme.surfaceContainer,
                     ),
                     const SizedBox(height: 16),
                     Autocomplete<String>(
@@ -366,10 +425,12 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                           controller:
                               fieldTextEditingController, // Utiliser le contrôleur fourni par Autocomplete
                           focusNode: fieldFocusNode,
-                          decoration: const InputDecoration(
-                              labelText: 'Saisir une nouvelle sous-catégorie',
-                              hintText: 'Saisir une nouvelle sous-catégorie',
-                              border: OutlineInputBorder()),
+                          cursorColor: theme.colorScheme.primary,
+                          decoration: _buildInputDecoration(
+                            label: 'Nouvelle sous-catégorie',
+                            hint: 'Saisir une nouvelle sous-catégorie',
+                            prefixIcon: Icons.add_box_outlined,
+                          ),
                           validator: (value) {
                             // Ce validateur s'applique au _subCategoryController.text effectif
                             if (_subCategoryController.text.trim().isEmpty) {
@@ -393,11 +454,13 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                         );
                       },
                     ),
+                    const SizedBox(height: 20),
                   ],
                 ),
-              const SizedBox(height: 16),
               Text("Image du Service (optionnel) :",
-                  style: Theme.of(context).textTheme.titleMedium),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface)),
               const SizedBox(height: 8),
               Center(
                 child: Column(
@@ -417,17 +480,27 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                       ),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.image_search_outlined),
-                      label: Text(_selectedServiceImageFile == null
-                          ? 'Choisir une image pour le service'
-                          : 'Changer l\'image du service'),
+                      label: Text(
+                        _selectedServiceImageFile == null
+                            ? 'Choisir une image pour le service'
+                            : 'Changer l\'image du service',
+                      ),
                       onPressed: _pickImageForService,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.secondary,
+                        foregroundColor: theme.colorScheme.onSecondary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0)),
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
               Text("Image pour la Sous-Catégorie (optionnel) :",
-                  style: Theme.of(context).textTheme.titleMedium),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface)),
               const SizedBox(height: 8),
               Center(
                 child: Column(
@@ -447,10 +520,18 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                       ),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.image_search_outlined),
-                      label: Text(_selectedSubCategoryImageFile == null
-                          ? 'Choisir une image pour la sous-catégorie'
-                          : 'Changer l\'image de la sous-catégorie'),
+                      label: Text(
+                        _selectedSubCategoryImageFile == null
+                            ? 'Choisir une image pour la sous-catégorie'
+                            : 'Changer l\'image de la sous-catégorie',
+                      ),
                       onPressed: _pickImageForSubCategory,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.secondary,
+                        foregroundColor: theme.colorScheme.onSecondary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0)),
+                      ),
                     ),
                   ],
                 ),
@@ -463,7 +544,14 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                       label: const Text('Ajouter le Service'),
                       onPressed: _addService,
                       style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 15)),
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0)),
+                      ),
                     ),
             ],
           ),

@@ -116,34 +116,26 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }) {
     final theme = Theme.of(context);
     return Card(
-      elevation: 0, // Remove shadow for a flatter look
-      color:
-          theme.colorScheme.surfaceContainerHighest, // Subtle background color
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant
-              .withOpacity(0.5), // Subtle border
-          width: 1,
-        ),
-      ),
+      elevation: 2.0,
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16.0), // Increased padding
+          padding: const EdgeInsets.all(12.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Icon(icon,
-                  size: 36, // Slightly smaller icon
-                  color: iconColor ?? theme.colorScheme.primary),
+                  size: 40, color: iconColor ?? theme.colorScheme.primary),
               const SizedBox(height: 12),
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -227,39 +219,33 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Espace Administrateur'),
         actions: const [LogoutButton()],
-        elevation: 0,
-        backgroundColor: theme.colorScheme.surface,
       ),
-      backgroundColor: theme.colorScheme.surface,
       body: RefreshIndicator(
         onRefresh: _fetchActiveCoiffeurs,
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+          padding: const EdgeInsets.all(16.0),
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Text(
-                'Tableau de bord',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
+            Text(
+              'Tableau de bord',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
+            const SizedBox(height: 16),
             _buildDashboardGrid(context),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Text("Coiffeurs Actifs",
-                  style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface)),
-            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+            Text("Coiffeurs Actifs",
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
             _buildActiveCoiffeursList(),
           ],
         ),
@@ -277,48 +263,33 @@ class _AdminHomePageState extends State<AdminHomePage> {
               Text(_errorMessage!, style: const TextStyle(color: Colors.red)));
     }
     if (_activeCoiffeurs.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-            child: Text(
-          "Aucun coiffeur actif pour le moment.",
-          textAlign: TextAlign.center,
-          style:
-              TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-        )),
-      );
+      return const Center(child: Text("Aucun coiffeur actif pour le moment."));
     }
     return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true, // Important dans un ListView parent
+      physics:
+          const NeverScrollableScrollPhysics(), // Important dans un ListView parent
       itemCount: _activeCoiffeurs.length,
       itemBuilder: (context, index) {
         final coiffeur = _activeCoiffeurs[index];
         return Card(
-          elevation: 0,
-          margin: const EdgeInsets.symmetric(vertical: 5),
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 6),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          color: Theme.of(context).colorScheme.surfaceContainer,
           child: ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             leading: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
               child: Icon(
                 Icons.person_outline,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
               ),
             ),
             title: Text(coiffeur.name,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("Voir le planning",
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            subtitle: const Text("Voir le planning"),
             trailing: Icon(Icons.arrow_forward_ios_rounded,
                 size: 18, color: Theme.of(context).colorScheme.primary),
             onTap: () {

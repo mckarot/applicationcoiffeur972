@@ -143,40 +143,45 @@ class _SignUpPageState extends State<SignUpPage> {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
+    final theme = Theme.of(context);
     return TextFormField(
+      cursorColor: theme.colorScheme.primary,
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.grey[600]),
+        labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[400]),
-        prefixIcon: Icon(icon, color: Colors.pink[300]),
+        hintStyle: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7)),
+        prefixIcon: Icon(icon, color: theme.colorScheme.primary),
+        filled: true,
+        fillColor: theme.colorScheme.surface.withOpacity(0.5),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.pink[300]!),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.error),
+          borderSide: BorderSide(color: theme.colorScheme.error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              BorderSide(color: Theme.of(context).colorScheme.error, width: 2),
+          borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
-      style: TextStyle(color: Colors.grey[800]),
+      style: TextStyle(color: theme.colorScheme.onSurface),
       validator: validator,
       autovalidateMode: AutovalidateMode.onUserInteraction,
     );
@@ -184,171 +189,229 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: const Text('Créer un compte'),
-        backgroundColor: Colors.pink[100],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary.withOpacity(0.1),
+              theme.colorScheme.surface,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
         child: Center(
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(Icons.person_add_alt_1,
-                      size: 80, color: Colors.pink[300]),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Rejoignez-nous !',
-                    style: TextStyle(
-                        fontSize: 24,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Icon(Icons.person_add_alt_1,
+                        size: 80, color: theme.colorScheme.primary),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Créer un compte',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.pink[700]),
-                  ),
-                  const SizedBox(height: 30),
-                  _buildInputField(
-                    controller: _nameController,
-                    label: 'Nom complet',
-                    icon: Icons.person,
-                    hint: 'Entrez un nom',
-                    validator: (value) => value == null || value.isEmpty
-                        ? 'Veuillez entrer votre nom'
-                        : null,
-                  ),
-                  const SizedBox(height: 20),
-                  _buildInputField(
-                    controller: _emailController,
-                    label: 'Email',
-                    icon: Icons.email,
-                    hint: 'entrez_un_email@example.com',
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) =>
-                        value == null || value.isEmpty || !value.contains('@')
-                            ? 'Veuillez entrer un email valide'
-                            : null,
-                  ),
-                  const SizedBox(height: 20),
-                  IntlPhoneField(
-                    controller: _phoneController,
-                    decoration: InputDecoration(
-                      labelText: 'Numéro de téléphone (optionnel)',
-                      labelStyle: TextStyle(color: Colors.grey[600]),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        color: theme.colorScheme.primary,
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.pink[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.primary),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.error),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.error,
-                            width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
                     ),
-                    initialCountryCode: 'MQ',
-                    disableLengthCheck: true,
-                    showDropdownIcon: true,
-                    dropdownIcon:
-                        Icon(Icons.arrow_drop_down, color: Colors.pink[300]),
-                    dropdownTextStyle: TextStyle(color: Colors.grey[800]),
-                    style: TextStyle(color: Colors.grey[800]),
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                    validator: (phone) {
-                      // Le champ est optionnel, donc on ne valide que s'il n'est pas vide
-                      if (phone != null &&
-                          phone.number.trim().isNotEmpty &&
-                          phone.number.trim().length != 9) {
-                        return 'Le numéro doit contenir 9 chiffres.';
-                      }
-                      return null;
-                    },
-                    onChanged: (phone) {
-                      _countryDialCode = phone.countryCode;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  _buildInputField(
-                    controller: _passwordController,
-                    label: 'Mot de passe',
-                    icon: Icons.lock,
-                    obscureText: true,
-                    validator: (value) => value == null || value.length < 6
-                        ? 'Le mot de passe doit contenir au moins 6 caractères'
-                        : null,
-                  ),
-                  const SizedBox(height: 20),
-                  _buildInputField(
-                    controller: _confirmPasswordController,
-                    label: 'Confirmer le mot de passe',
-                    icon: Icons.lock_outline,
-                    obscureText: true,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Veuillez confirmer le mot de passe';
-                      }
-                      if (value != _passwordController.text) {
-                        return 'Les mots de passe ne correspondent pas';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  DropdownButtonFormField<String>(
-                    value: _selectedRole,
-                    decoration: InputDecoration(
-                      labelText: 'Rôle',
-                      prefixIcon:
-                          Icon(Icons.person_outline, color: Colors.pink[300]),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.0)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Créer un nouveau profil pour un utilisateur',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                    items: _roles
-                        .map((role) => DropdownMenuItem(
-                              value: role,
-                              child: Text(
-                                  role[0].toUpperCase() + role.substring(1)),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedRole = value!;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 30),
-                  _isLoading
-                      ? const CircularProgressIndicator()
-                      : ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.pink[400],
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 50, vertical: 15),
-                              textStyle: const TextStyle(
-                                  fontSize: 18, color: Colors.white),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.0))),
-                          onPressed: _performSignUp,
-                          child: const Text("S'inscrire",
-                              style: TextStyle(color: Colors.white)),
+                    const SizedBox(height: 48),
+                    _buildInputField(
+                      controller: _nameController,
+                      label: 'Nom complet',
+                      icon: Icons.person_outline,
+                      hint: 'Entrez un nom',
+                      validator: (value) => value == null || value.isEmpty
+                          ? 'Veuillez entrer votre nom'
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildInputField(
+                      controller: _emailController,
+                      label: 'Email',
+                      icon: Icons.email_outlined,
+                      hint: 'entrez_un_email@example.com',
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) =>
+                          value == null || value.isEmpty || !value.contains('@')
+                              ? 'Veuillez entrer un email valide'
+                              : null,
+                    ),
+                    const SizedBox(height: 20),
+                    IntlPhoneField(
+                      controller: _phoneController,
+                      decoration: InputDecoration(
+                        labelText: 'Numéro de téléphone',
+                        labelStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant),
+                        filled: true,
+                        fillColor: theme.colorScheme.surface.withOpacity(0.5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
                         ),
-                ],
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: theme.colorScheme.primary, width: 2),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: theme.colorScheme.error, width: 1),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: theme.colorScheme.error, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                      ),
+                      initialCountryCode: 'MQ',
+                      disableLengthCheck: true,
+                      showDropdownIcon: true,
+                      dropdownIcon: Icon(Icons.arrow_drop_down,
+                          color: theme.colorScheme.primary),
+                      dropdownTextStyle:
+                          TextStyle(color: theme.colorScheme.onSurface),
+                      style: TextStyle(color: theme.colorScheme.onSurface),
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      validator: (phone) {
+                        // Le champ est optionnel, donc on ne valide que s'il n'est pas vide
+                        if (phone != null &&
+                            phone.number.trim().isNotEmpty &&
+                            phone.number.trim().length != 9) {
+                          return 'Le numéro doit contenir 9 chiffres.';
+                        }
+                        return null;
+                      },
+                      onChanged: (phone) {
+                        _countryDialCode = phone.countryCode;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    _buildInputField(
+                      controller: _passwordController,
+                      label: 'Mot de passe',
+                      icon: Icons.lock_outline,
+                      obscureText: true,
+                      validator: (value) => value == null || value.length < 6
+                          ? 'Le mot de passe doit contenir au moins 6 caractères'
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildInputField(
+                      controller: _confirmPasswordController,
+                      label: 'Confirmer le mot de passe',
+                      icon: Icons.lock_reset,
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Veuillez confirmer le mot de passe';
+                        }
+                        if (value != _passwordController.text) {
+                          return 'Les mots de passe ne correspondent pas';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<String>(
+                      value: _selectedRole,
+                      decoration: InputDecoration(
+                        labelText: 'Rôle de l\'utilisateur',
+                        labelStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant),
+                        prefixIcon: Icon(Icons.manage_accounts_outlined,
+                            color: theme.colorScheme.primary),
+                        filled: true,
+                        fillColor: theme.colorScheme.surface.withOpacity(0.5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: theme.colorScheme.primary, width: 2),
+                        ),
+                      ),
+                      dropdownColor: theme.colorScheme.surfaceContainer,
+                      items: _roles
+                          .map((role) => DropdownMenuItem(
+                                value: role,
+                                child: Text(
+                                    role[0].toUpperCase() + role.substring(1)),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedRole = value!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                textStyle: theme.textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12.0))),
+                            onPressed: _performSignUp,
+                            child: const Text("Créer l'utilisateur"),
+                          ),
+                    const SizedBox(height: 24),
+                    TextButton(
+                      onPressed: () {
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: Text('Annuler',
+                          style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

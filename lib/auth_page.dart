@@ -126,106 +126,141 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context); // Obtenir le thème pour un style cohérent
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Salon de Coiffure - Connexion'),
-        backgroundColor: Colors.pink[100], // Une couleur douce pour un salon
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
+      // Pas d'AppBar pour un look plus immersif. Le contenu est protégé par SafeArea.
+      body: Container(
+        // Arrière-plan en dégradé pour une touche de modernité
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary.withOpacity(0.1),
+              theme.colorScheme.surface,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
         child: Center(
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(
-                    Icons.content_cut,
-                    size: 80,
-                    color: Colors.pink[300],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Connectez-vous',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.pink,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Icon(
+                      Icons.content_cut,
+                      size: 80,
+                      color: theme.colorScheme.primary,
                     ),
-                  ),
-                  const SizedBox(height: 30),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'entrez_votre_email@example.com',
-                      prefixIcon: Icon(Icons.email, color: Colors.pink[300]),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Bienvenue',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null ||
-                          value.isEmpty ||
-                          !value.contains('@')) {
-                        return 'Veuillez entrer un email valide';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: 'Mot de passe',
-                      hintText: 'Entrez votre mot de passe',
-                      prefixIcon: Icon(Icons.lock, color: Colors.pink[300]),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Connectez-vous pour continuer',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    obscureText: true,
-                    validator: (value) {
-                      if (value == null || value.isEmpty || value.length < 6) {
-                        return 'Le mot de passe doit contenir au moins 6 caractères';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 30),
-                  _isLoading
-                      ? const CircularProgressIndicator()
-                      : ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.pink[400],
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 50, vertical: 15),
-                            textStyle: const TextStyle(
-                                fontSize: 18, color: Colors.white),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12.0),
-                            ),
+                    const SizedBox(height: 48),
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email_outlined,
+                            color: theme.colorScheme.primary),
+                        filled: true,
+                        fillColor: theme.colorScheme.surface.withOpacity(0.5),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                            borderSide: BorderSide.none),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null ||
+                            value.isEmpty ||
+                            !value.contains('@')) {
+                          return 'Veuillez entrer un email valide';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: InputDecoration(
+                        labelText: 'Mot de passe',
+                        prefixIcon: Icon(Icons.lock_outline,
+                            color: theme.colorScheme.primary),
+                        filled: true,
+                        fillColor: theme.colorScheme.surface.withOpacity(0.5),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                            borderSide: BorderSide.none),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null ||
+                            value.isEmpty ||
+                            value.length < 6) {
+                          return 'Le mot de passe doit contenir au moins 6 caractères';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12.0)),
+                                textStyle: theme.textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold)),
+                            onPressed: _performLogin,
+                            child: const Text('Se connecter'),
                           ),
-                          onPressed: _performLogin,
-                          child: const Text('Se connecter',
-                              style: TextStyle(color: Colors.white)),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("Pas encore de compte ?",
+                            style: theme.textTheme.bodyMedium),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      const UsersSignUpPage()),
+                            );
+                          },
+                          child: Text(
+                            "S'inscrire",
+                            style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.bold),
+                          ),
                         ),
-                  const SizedBox(height: 20),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (context) => const UsersSignUpPage()),
-                      );
-                    },
-                    child: Text(
-                      "Pas encore de compte ? S'inscrire",
-                      style: TextStyle(color: Colors.pink[700]),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

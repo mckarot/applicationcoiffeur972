@@ -81,6 +81,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
             : Colors.green[700]!;
         break;
       case ServiceCategory.mixte:
+      // ignore: unreachable_switch_default
       default:
         iconData = Icons.spa_rounded;
         baseColor = theme.brightness == Brightness.light

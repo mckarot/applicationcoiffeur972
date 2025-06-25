@@ -630,7 +630,8 @@ class _BookingPageState extends State<BookingPage> {
         // Pour un contrôle explicite, vous pouvez utiliser `leading: BackButton(),`
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(
+            15.0), // Ajout de padding pour éviter que le contenu ne touche les bords
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -690,17 +691,19 @@ class _BookingPageState extends State<BookingPage> {
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 10),
-              SlotSelector(
-                availableSlots: _dynamicAvailableSlots,
-                selectedSlot: _selectedCreneau,
-                onSlotSelected: (slot) {
-                  setState(() {
-                    _selectedCreneau = slot;
-                  });
-                },
-                selectedService: _selectedService,
-                isLoading: _isLoadingSlots,
-                error: _slotsError,
+              Center(
+                child: SlotSelector(
+                  availableSlots: _dynamicAvailableSlots,
+                  selectedSlot: _selectedCreneau,
+                  onSlotSelected: (slot) {
+                    setState(() {
+                      _selectedCreneau = slot;
+                    });
+                  },
+                  selectedService: _selectedService,
+                  isLoading: _isLoadingSlots,
+                  error: _slotsError,
+                ),
               ),
               const SizedBox(height: 40),
               Center(

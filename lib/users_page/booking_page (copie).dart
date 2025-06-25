@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soifapp/models/haircut_service.dart';
+import 'package:soifapp/users_page/coiffeur_details_page.dart';
 import 'package:soifapp/users_page/planning_page.dart';
 import 'package:soifapp/users_page/salon_location_page.dart';
 import 'package:soifapp/users_page/select_service_page.dart';
@@ -12,7 +13,6 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'widgets/date_selector.dart';
 import 'widgets/service_selector.dart';
-import 'widgets/coiffeur_selector.dart';
 import 'widgets/slot_selector.dart';
 
 // Tes fonctions d'aide existantes (inchangées)
@@ -77,8 +77,6 @@ class Coiffeur {
         publicPhotoUrl = supabaseClient.storage
             .from('photos.coiffeurs')
             .getPublicUrl(trimmedPhotoPath); // Utiliser le chemin nettoyé
-        print(
-            'Generated Photo URL for $profileName: $publicPhotoUrl'); // <-- ADD THIS LINE
       } catch (e) {
         print(
             'Erreur lors de la récupération de l\'URL publique pour $trimmedPhotoPath: $e');
@@ -275,211 +273,157 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   Future<void> _fetchAvailableSlots() async {
-    // Ne rien faire si les informations nécessaires ne sont pas sélectionnées
     if (_selectedDate == null ||
         _selectedService == null ||
         _selectedCoiffeurId == null) {
-      setState(() {
-        _dynamicAvailableSlots = [];
-        _selectedCreneau = null;
-        _isLoadingSlots = false;
-        _slotsError = null;
-      });
+      if (mounted) {
+        setState(() {
+          _dynamicAvailableSlots = [];
+          _selectedCreneau = null;
+          _isLoadingSlots = false;
+          _slotsError = null;
+        });
+      }
       return;
     }
 
-    setState(() {
-      _isLoadingSlots = true;
-      _slotsError = null;
-      _dynamicAvailableSlots = [];
-      _selectedCreneau = null; // Réinitialiser le créneau sélectionné
-    });
+    if (mounted) {
+      setState(() {
+        _isLoadingSlots = true;
+        _slotsError = null;
+        _dynamicAvailableSlots = [];
+        _selectedCreneau = null;
+      });
+    }
 
     try {
       final coiffeurId = _selectedCoiffeurId!;
       final selectedDate = _selectedDate!;
       final serviceDuration = _selectedService!.duration;
 
-      print('--- Début _fetchAvailableSlots ---');
-      print('Coiffeur ID: $coiffeurId');
-      print('Date sélectionnée: ${selectedDate.toLocal()}');
-      print('Durée du service: ${serviceDuration.inMinutes} minutes');
-
-      if (_salonLocation == null) {
-        print(
-            "ERREUR: _salonLocation est null dans _fetchAvailableSlots. Impossible de calculer les créneaux.");
-        setState(() {
-          _slotsError =
-              "Erreur de configuration du fuseau horaire. Impossible de charger les créneaux.";
-          _isLoadingSlots = false;
-          _dynamicAvailableSlots = [];
-        });
-        return;
-      }
-
-      // Obtenir l'heure actuelle dans le fuseau horaire du salon
       final tz.TZDateTime nowInSalon = tz.TZDateTime.now(_salonLocation!);
-      // Vérifier si la date sélectionnée est aujourd'hui
-      final bool isToday = tz.TZDateTime(
-        _salonLocation!,
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-      ).isAtSameMomentAs(tz.TZDateTime(
-        _salonLocation!,
-        nowInSalon.year,
-        nowInSalon.month,
-        nowInSalon.day,
-      ));
+      final bool isToday = tz.TZDateTime(_salonLocation!, selectedDate.year,
+              selectedDate.month, selectedDate.day)
+          .isAtSameMomentAs(tz.TZDateTime(_salonLocation!, nowInSalon.year,
+              nowInSalon.month, nowInSalon.day));
 
-      // Définir le début et la fin de la journée sélectionnée en UTC pour la requête des RDV existants
       final DateTime dayStartUtc = DateTime.utc(
           selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
       final DateTime dayEndUtc = dayStartUtc
           .add(const Duration(days: 1))
           .subtract(const Duration(milliseconds: 1));
-      print('Période de requête UTC pour les RDV: $dayStartUtc à $dayEndUtc');
 
-      // 1. Récupérer les horaires de travail récurrents pour le coiffeur et le jour de la semaine sélectionné
-      final selectedDayOfWeek =
-          selectedDate.weekday; // Lundi = 1, ..., Dimanche = 7
+      final selectedDayOfWeek = selectedDate.weekday;
       final workSchedulesResponse = await _supabaseClient
           .from('coiffeur_work_schedules')
-          .select(
-              'start_time, end_time') // Ce sont des HEURES LOCALES (ex: '09:00:00')
+          .select('start_time, end_time')
           .eq('coiffeur_user_id', coiffeurId)
           .eq('day_of_week', selectedDayOfWeek)
-          // Optionnel: filtrer par effective_date_start et effective_date_end si vous les utilisez
-          // .lte('effective_date_start', selectedDate.toIso8601String()) // ou IS NULL
-          // .gte('effective_date_end', selectedDate.toIso8601String()) // ou IS NULL
-          .order('start_time', ascending: true); // Trier par heure de début
-
+          .order('start_time', ascending: true);
       final List<Map<String, dynamic>> workSchedulesData =
           List<Map<String, dynamic>>.from(workSchedulesResponse);
-      print(
-          'Horaires de travail récupérés pour le jour $selectedDayOfWeek: $workSchedulesData');
 
-      // 2. Récupérer les rendez-vous existants pour ce coiffeur ce jour-là
       final appointmentsResponse = await _supabaseClient
           .from('appointments')
           .select('start_time, end_time')
           .eq('coiffeur_user_id', coiffeurId)
           .lt('start_time', dayEndUtc.toIso8601String())
-          .gt('end_time', dayStartUtc.toIso8601String())
-          .order('start_time', ascending: true);
-
+          .gt('end_time', dayStartUtc.toIso8601String());
       final List<Map<String, dynamic>> appointmentsData =
           List<Map<String, dynamic>>.from(appointmentsResponse);
 
-      print('Rendez-vous bruts récupérés: $appointmentsData');
+      final absencesResponse = await _supabaseClient
+          .from('coiffeur_absences')
+          .select('start_time, end_time')
+          .eq('coiffeur_user_id', coiffeurId)
+          .lt('start_time', dayEndUtc.toIso8601String())
+          .gt('end_time', dayStartUtc.toIso8601String());
+      final List<Map<String, dynamic>> absencesData =
+          List<Map<String, dynamic>>.from(absencesResponse);
+
+      print(
+          "Absences pour ${coiffeurId} le ${selectedDate.toLocal()}: $absencesData");
 
       final List<String> calculatedSlots = [];
-      final DateFormat timeFormatter =
-          DateFormat.Hm('fr_FR'); // Pour formater l'heure
+      final DateFormat timeFormatter = DateFormat.Hm('fr_FR');
 
       for (var schedule in workSchedulesData) {
-        print('Traitement du bloc horaire: $schedule');
-        final String startTimeStr =
-            schedule['start_time'] as String; // ex: "09:00:00"
-        final String endTimeStr =
-            schedule['end_time'] as String; // ex: "12:00:00"
+        final String startTimeStr = schedule['start_time'] as String;
+        final String endTimeStr = schedule['end_time'] as String;
 
-        // Parser les heures et minutes locales
         final startParts = startTimeStr.split(':');
         final endParts = endTimeStr.split(':');
 
-        // Créer des TZDateTime dans le fuseau du salon pour la disponibilité du coiffeur
-        final tz.TZDateTime currentAvailabilityStartSalon = tz.TZDateTime(
+        final tz.TZDateTime availabilityStart = tz.TZDateTime(
             _salonLocation!,
             selectedDate.year,
             selectedDate.month,
             selectedDate.day,
-            int.parse(startParts[0]), // heure
-            int.parse(startParts[1]) // minute
-            );
-
-        final tz.TZDateTime currentAvailabilityEndSalon = tz.TZDateTime(
+            int.parse(startParts[0]),
+            int.parse(startParts[1]));
+        final tz.TZDateTime availabilityEnd = tz.TZDateTime(
             _salonLocation!,
             selectedDate.year,
             selectedDate.month,
             selectedDate.day,
-            int.parse(endParts[0]), // heure
-            int.parse(endParts[1]) // minute
-            );
+            int.parse(endParts[0]),
+            int.parse(endParts[1]));
 
-        print(
-            '  Bloc horaire salon effectif: ${timeFormatter.format(currentAvailabilityStartSalon)} - ${timeFormatter.format(currentAvailabilityEndSalon)}');
+        tz.TZDateTime potentialSlotStart = availabilityStart;
 
-        tz.TZDateTime potentialSlotStartSalon = currentAvailabilityStartSalon;
+        while (
+            potentialSlotStart.add(serviceDuration).isBefore(availabilityEnd) ||
+                potentialSlotStart
+                    .add(serviceDuration)
+                    .isAtSameMomentAs(availabilityEnd)) {
+          final tz.TZDateTime potentialSlotEnd =
+              potentialSlotStart.add(serviceDuration);
 
-        // Itérer par incréments (ex: 15 minutes)
-        while (potentialSlotStartSalon
-                .add(serviceDuration)
-                .isBefore(currentAvailabilityEndSalon) ||
-            potentialSlotStartSalon
-                .add(serviceDuration)
-                .isAtSameMomentAs(currentAvailabilityEndSalon)) {
-          // Si la date sélectionnée est aujourd'hui, ignorer les créneaux déjà passés
-          if (isToday && potentialSlotStartSalon.isBefore(nowInSalon)) {
-            print(
-                '  Créneau ignoré (passé): ${timeFormatter.format(potentialSlotStartSalon)}');
-            potentialSlotStartSalon = potentialSlotStartSalon
+          if (isToday && potentialSlotStart.isBefore(nowInSalon)) {
+            potentialSlotStart = potentialSlotStart
                 .add(const Duration(minutes: slotIncrementMinutes));
-            continue; // Passer au prochain créneau potentiel
+            continue;
           }
 
-          tz.TZDateTime potentialSlotEndSalon =
-              potentialSlotStartSalon.add(serviceDuration);
-          print(
-              '  Créneau potentiel (salon): ${timeFormatter.format(potentialSlotStartSalon)} - ${timeFormatter.format(potentialSlotEndSalon)}');
+          final bool isBooked = appointmentsData.any((appointment) {
+            final rdvStart = tz.TZDateTime.from(
+                DateTime.parse(appointment['start_time'] as String),
+                _salonLocation!);
+            final rdvEnd = tz.TZDateTime.from(
+                DateTime.parse(appointment['end_time'] as String),
+                _salonLocation!);
+            return potentialSlotStart.isBefore(rdvEnd) &&
+                potentialSlotEnd.isAfter(rdvStart);
+          });
 
-          // Vérifier si ce créneau potentiel chevauche un RDV existant
-          bool overlapsWithExistingAppointment = false;
-          for (var appointment in appointmentsData) {
-            // Les RDV sont en UTC, les convertir en TZDateTime dans le fuseau du salon pour la comparaison
-            final DateTime rdvStartTimeUtc =
-                DateTime.parse(appointment['start_time'] as String);
-            final DateTime rdvEndTimeUtc =
-                DateTime.parse(appointment['end_time'] as String);
+          final bool isAbsent = absencesData.any((absence) {
+            final absenceStart = tz.TZDateTime.from(
+                DateTime.parse(absence['start_time'] as String),
+                _salonLocation!);
+            final absenceEnd = tz.TZDateTime.from(
+                DateTime.parse(absence['end_time'] as String), _salonLocation!);
+            return potentialSlotStart.isBefore(absenceEnd) &&
+                potentialSlotEnd.isAfter(absenceStart);
+          });
 
-            final tz.TZDateTime rdvStartSalon =
-                tz.TZDateTime.from(rdvStartTimeUtc, _salonLocation!);
-            final tz.TZDateTime rdvEndSalon =
-                tz.TZDateTime.from(rdvEndTimeUtc, _salonLocation!);
-
-            // Condition de chevauchement: (StartA < EndB) and (EndA > StartB)
-            if (potentialSlotStartSalon.isBefore(rdvEndSalon) &&
-                potentialSlotEndSalon.isAfter(rdvStartSalon)) {
-              print(
-                  '    -> Chevauche RDV existant (salon): ${timeFormatter.format(rdvStartSalon)} - ${timeFormatter.format(rdvEndSalon)}');
-              overlapsWithExistingAppointment = true;
-              break;
-            }
-          }
-
-          if (!overlapsWithExistingAppointment) {
-            print(
-                '    -> Créneau VALIDE ajouté (salon): ${timeFormatter.format(potentialSlotStartSalon)}');
-            // Le créneau est valide, ajouter l'heure de début formatée
-            calculatedSlots.add(timeFormatter.format(
-                potentialSlotStartSalon)); // On stocke "HH:mm" basé sur l'heure du salon
+          if (!isBooked && !isAbsent) {
+            calculatedSlots.add(timeFormatter.format(potentialSlotStart));
           } else {
-            print('    -> Créneau NON VALIDE (chevauchement)');
+            print(
+                'Créneau ${timeFormatter.format(potentialSlotStart)} rejeté. RDV: $isBooked, Absence: $isAbsent');
           }
-          potentialSlotStartSalon = potentialSlotStartSalon
+
+          potentialSlotStart = potentialSlotStart
               .add(const Duration(minutes: slotIncrementMinutes));
         }
       }
-      print('Créneaux calculés (avant dédoublonnage et tri): $calculatedSlots');
 
       if (mounted) {
         setState(() {
-          _dynamicAvailableSlots = calculatedSlots.toSet().toList()
-            ..sort(); // Enlever doublons et trier
+          _dynamicAvailableSlots = calculatedSlots.toSet().toList()..sort();
           _isLoadingSlots = false;
         });
       }
-      print('--- Fin _fetchAvailableSlots ---');
     } catch (e, stacktrace) {
       print('Erreur lors de la récupération des créneaux: $e');
       print(stacktrace);
@@ -569,12 +513,22 @@ class _BookingPageState extends State<BookingPage> {
           final coiffeur = _coiffeurs[index];
           final isSelected = _selectedCoiffeurId == coiffeur.id;
           return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedCoiffeurId = coiffeur.id;
-                _selectedCreneau = null;
-              });
-              _fetchAvailableSlots(); // Mettre à jour les créneaux si le coiffeur change
+            onTap: () async {
+              final selectedId = await Navigator.push<String>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CoiffeurDetailsPage(coiffeur: coiffeur),
+                ),
+              );
+
+              // Si un coiffeur a été choisi depuis la page de détails
+              if (selectedId != null && mounted) {
+                setState(() {
+                  _selectedCoiffeurId = selectedId;
+                  _selectedCreneau = null;
+                });
+                _fetchAvailableSlots(); // Mettre à jour les créneaux
+              }
             },
             child: Padding(
               padding:
@@ -720,19 +674,7 @@ class _BookingPageState extends State<BookingPage> {
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary)),
               const SizedBox(height: 15),
-              CoiffeurSelector(
-                coiffeurs: _coiffeurs,
-                selectedCoiffeurId: _selectedCoiffeurId,
-                onCoiffeurSelected: (coiffeurId) {
-                  setState(() {
-                    _selectedCoiffeurId = coiffeurId;
-                    _selectedCreneau = null;
-                  });
-                  _fetchAvailableSlots();
-                },
-                isLoading: _isLoadingCoiffeurs,
-                error: _coiffeursError,
-              ),
+              _buildCoiffeurSelector(),
               const SizedBox(height: 30)
             ] else if (_selectedDate != null && _selectedService == null)
               _buildInfoMessage('Veuillez d\'abord choisir un service.'),
