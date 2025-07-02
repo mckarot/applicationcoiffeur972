@@ -178,29 +178,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     builder: (context) => const ManageCoiffeursPage()))),
         _buildActionCard(
             context: context,
-            icon: Icons.add_shopping_cart_outlined,
-            title: 'Ajouter Service',
+            icon: Icons.event_busy_outlined,
+            title: 'Gérer les absences',
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => const AddHaircutServicePage()))),
-        _buildActionCard(
-            context: context,
-            icon: Icons.list_alt_outlined,
-            title: 'Gérer Services',
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AdminManageServicesPage()))),
-        _buildActionCard(
-            context: context,
-            icon: Icons.delete_sweep_outlined,
-            title: 'Gérer Catégories',
-            iconColor: Colors.redAccent,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AdminDeleteSubCategoryPage()))),
+                    builder: (context) => const ManageAbsencesPage()))),
         _buildActionCard(
             context: context,
             icon: Icons.person_remove_outlined,
@@ -210,18 +193,32 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => const AdminDeleteCoiffeurPage()))),
-        _buildAbsencesCard(context),
+        _buildActionCard(
+            context: context,
+            icon: Icons.add_shopping_cart_outlined,
+            title: 'Ajouter Service / Catégorie',
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AddHaircutServicePage()))),
+        _buildActionCard(
+            context: context,
+            icon: Icons.list_alt_outlined,
+            title: 'Supprimer Services',
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminManageServicesPage()))),
+        _buildActionCard(
+            context: context,
+            icon: Icons.delete_sweep_outlined,
+            title: 'Supprimer Catégories',
+            iconColor: Colors.redAccent,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminDeleteSubCategoryPage()))),
       ],
-    );
-  }
-
-  Widget _buildAbsencesCard(BuildContext context) {
-    return _buildActionCard(
-      context: context,
-      icon: Icons.event_busy_outlined,
-      title: 'Gérer les absences',
-      onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (context) => const ManageAbsencesPage())),
     );
   }
 
@@ -233,7 +230,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         title: const Text('Espace Administrateur'),
         actions: const [LogoutButton()],
         elevation: 0,
-        backgroundColor: theme.colorScheme.surface,
+        backgroundColor: theme.colorScheme.primaryContainer,
       ),
       backgroundColor: theme.colorScheme.surface,
       body: RefreshIndicator(

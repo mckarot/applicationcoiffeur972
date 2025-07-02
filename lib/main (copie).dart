@@ -43,65 +43,66 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
-    // Thème Clair (moderne, basé sur le bleu)
+    // Thème Clair (basé sur vos couleurs roses)
     final lightTheme = ThemeData(
       brightness: Brightness.light,
-      primaryColor: Colors.blue[800],
-      scaffoldBackgroundColor: Colors.grey[50],
+      primaryColor: Colors.pink[400],
+      scaffoldBackgroundColor: Colors.white,
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.blue[700],
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: Colors.pink[100],
+        iconTheme: IconThemeData(color: Colors.pink[700]),
         titleTextStyle: TextStyle(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            color: Colors.pink[800], fontSize: 20, fontWeight: FontWeight.bold),
       ),
       colorScheme: ColorScheme.light(
-        primary: Colors.blue[800]!,
-        secondary: Colors.blueAccent[400]!,
+        primary: Colors.pink[400]!,
+        secondary: Colors.pinkAccent[200]!,
         surface: Colors.white,
-        background: Colors.grey[50]!,
         onPrimary: Colors.white,
         onSecondary: Colors.black,
         onSurface: Colors.black87,
         error: Colors.redAccent,
         onError: Colors.white,
-        surfaceContainerHighest: Colors.blue[50],
-        outlineVariant: Colors.blue[200],
+        // Couleurs spécifiques pour les containers de surface (utilisé dans BookingPage)
+        surfaceContainerHighest: Colors.pink[50], // Très clair
+        outlineVariant: Colors.pink[200], // Pour les bordures
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue[700],
+        backgroundColor: Colors.pink[300],
         foregroundColor: Colors.white,
       )),
       useMaterial3: true,
     );
 
-    // Thème Sombre (moderne, basé sur le bleu)
+    // Thème Sombre
     final darkTheme = ThemeData(
       brightness: Brightness.dark,
-      primaryColor: Colors.blue[300],
-      scaffoldBackgroundColor: const Color(0xFF121212),
+      primaryColor:
+          Colors.pink[700], // Un rose plus soutenu pour le mode sombre
+      scaffoldBackgroundColor: Colors.grey[900],
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.grey[850],
-        iconTheme: IconThemeData(color: Colors.blue[300]),
+        iconTheme: IconThemeData(color: Colors.pink[300]),
         titleTextStyle: TextStyle(
-            color: Colors.blue[200], fontSize: 20, fontWeight: FontWeight.bold),
+            color: Colors.pink[200], fontSize: 20, fontWeight: FontWeight.bold),
       ),
       colorScheme: ColorScheme.dark(
-        primary: Colors.blue[400]!,
-        secondary: Colors.blueAccent[200]!,
-        surface: Colors.grey[850]!,
-        background: const Color(0xFF121212),
-        onPrimary: Colors.black,
+        primary: Colors.pink[600]!,
+        secondary: Colors.pinkAccent[100]!,
+        surface: Colors.grey[800]!,
+        onPrimary: Colors.black, // Texte sur fond primaire sombre
         onSecondary: Colors.black,
         onSurface: Colors.white70,
         error: Colors.red[400]!,
         onError: Colors.black,
-        surfaceContainerHighest: Colors.grey[800]!,
-        outlineVariant: Colors.grey[700]!,
+        // Couleurs spécifiques pour les containers de surface en mode sombre
+        surfaceContainerHighest: Colors.grey[700]!, // Un gris plus foncé
+        outlineVariant: Colors.grey[600]!, // Pour les bordures
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue[600],
+        backgroundColor: Colors.pink[500],
         foregroundColor: Colors.white,
       )),
       useMaterial3: true,
