@@ -6,7 +6,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 
 class ManageAbsencesPage extends StatefulWidget {
-  const ManageAbsencesPage({Key? key}) : super(key: key);
+  const ManageAbsencesPage({super.key});
 
   @override
   ManageAbsencesPageState createState() => ManageAbsencesPageState();

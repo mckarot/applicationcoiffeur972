@@ -342,7 +342,7 @@ class _BookingPageState extends State<BookingPage> {
           List<Map<String, dynamic>>.from(absencesResponse);
 
       print(
-          "Absences pour ${coiffeurId} le ${selectedDate.toLocal()}: $absencesData");
+          "Absences pour $coiffeurId le ${selectedDate.toLocal()}: $absencesData");
 
       final List<String> calculatedSlots = [];
       final DateFormat timeFormatter = DateFormat.Hm('fr_FR');

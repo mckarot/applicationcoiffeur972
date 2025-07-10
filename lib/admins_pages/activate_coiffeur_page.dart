@@ -350,7 +350,7 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
                               onPressed: () =>
                                   _deleteSchedule(entry.id, dayIndex)),
                         );
-                      }).toList(),
+                      }),
                   ],
                 ),
               ),

@@ -1,24 +1,25 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:soifapp/models/haircut_service.dart'; // Assurez-vous que le chemin est correct
+import 'package:image_picker/image_picker.dart';
+import 'package:soifapp/models/haircut_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class AdminManageServicesPage extends StatefulWidget {
-  const AdminManageServicesPage({super.key});
+/// Page de sélection du service à modifier.
+/// Réutilise la logique de `AdminManageServicesPage` pour la navigation.
+class AdminEditServicePage extends StatefulWidget {
+  const AdminEditServicePage({super.key});
 
   @override
-  State<AdminManageServicesPage> createState() =>
-      _AdminManageServicesPageState();
+  State<AdminEditServicePage> createState() => _AdminEditServicePageState();
 }
 
-class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
+class _AdminEditServicePageState extends State<AdminEditServicePage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<HaircutService> _services = [];
   bool _isLoading = true;
   String? _errorMessage;
 
-  // États pour la sélection, similaires à SelectServicePage
-  ServiceCategory _selectedMainCategory =
-      ServiceCategory.femme; // Catégorie par défaut
+  ServiceCategory _selectedMainCategory = ServiceCategory.femme;
   String? _selectedSubCategoryName;
   final List<ServiceCategory> _displayCategories = [
     ServiceCategory.femme,
@@ -40,29 +41,41 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       _errorMessage = null;
     });
     try {
-      final List<Map<String, dynamic>> servicesData =
+      final data =
           await _supabase.from('haircut_services').select().order('name');
-
       if (mounted) {
         setState(() {
-          _services = servicesData
-              .map((data) => HaircutService.fromSupabase(data))
-              .toList();
+          _services =
+              data.map((item) => HaircutService.fromSupabase(item)).toList();
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        print('Erreur fetchServices (admin): $e');
+        print('Erreur fetchServices (admin edit): $e');
         setState(() {
-          _errorMessage = 'Impossible de charger les services.';
+          _errorMessage = "Impossible de charger les services.";
           _isLoading = false;
         });
       }
     }
   }
 
-  // Helper pour l'affichage de l'image du service (similaire à SelectServicePage)
+  void _navigateToEditForm(HaircutService service) {
+    Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _EditServiceFormPage(service: service),
+      ),
+    ).then((wasUpdated) {
+      if (wasUpdated == true) {
+        _fetchServices(); // Rafraîchir la liste si une modification a eu lieu
+      }
+    });
+  }
+
+  // --- Méthodes de construction de l'UI adaptées de AdminManageServicesPage ---
+
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
     if (service.imagePlaceholder.isNotEmpty) {
       try {
@@ -70,8 +83,6 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             .from('service.images')
             .getPublicUrl(service.imagePlaceholder);
 
-        // Utilisation de ClipRRect pour s'assurer que l'image respecte les coins arrondis
-        // si la carte elle-même ne le fait pas assez pour l'image (bien que Clip.antiAlias sur Card aide).
         return Image.network(
           imageUrl,
           fit: BoxFit.cover,
@@ -89,12 +100,10 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
           },
           errorBuilder:
               (BuildContext context, Object error, StackTrace? stackTrace) {
-            print('Erreur chargement image réseau (admin): $error');
             return _buildDefaultServiceIcon(service, context);
           },
         );
       } catch (e) {
-        print("Erreur construction URL image (admin): $e");
         return _buildDefaultServiceIcon(service, context);
       }
     }
@@ -104,7 +113,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
   Widget _buildDefaultServiceIcon(
       HaircutService service, BuildContext context) {
     IconData iconData;
-    Color baseColor; // Couleur de base pour l'icône et le fond
+    Color baseColor;
     final theme = Theme.of(context);
 
     switch (service.category) {
@@ -133,85 +142,14 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             : Colors.purple[700]!;
         break;
     }
-    // Le CircleAvatar précédent était redondant et non le style final visé.
-    // Le widget correct à retourner est le Container ci-dessous.
 
     return Container(
       decoration: BoxDecoration(
-        color: baseColor.withOpacity(0.20), // Fond avec opacité
+        color: baseColor.withOpacity(0.20),
       ),
       child: Center(child: Icon(iconData, color: baseColor, size: 50)),
     );
   }
-
-  Future<void> _deleteService(String serviceId, String serviceName) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmer la suppression'),
-          content: Text(
-              'Voulez-vous vraiment supprimer le service "$serviceName" ? Cette action est irréversible.'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Annuler'),
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Supprimer'),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm != true) return;
-
-    final String? currentSubCategory = _selectedSubCategoryName;
-
-    try {
-      await _supabase.from('haircut_services').delete().eq('id', serviceId);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Service "$serviceName" supprimé.'),
-            backgroundColor: Colors.green),
-      );
-
-      setState(() {
-        _services.removeWhere((service) => service.id == serviceId);
-        final bool isSubCategoryNowEmpty = !_services.any((s) =>
-            s.subCategory.trim().toLowerCase() ==
-            currentSubCategory?.trim().toLowerCase());
-
-        if (isSubCategoryNowEmpty) {
-          _selectedSubCategoryName = null;
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      String errorMessage = 'Erreur lors de la suppression.';
-      if (e is PostgrestException &&
-          e.message.contains('foreign key constraint')) {
-        errorMessage =
-            'Ce service ne peut pas être supprimé car il est utilisé (ex: dans un rendez-vous).';
-      } else {
-        print('Erreur lors de la suppression du service: $e');
-        errorMessage = 'Une erreur est survenue lors de la suppression.';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  // --- Méthodes de construction de l'UI adaptées de SelectServicePage ---
 
   IconData _getDynamicIconForSubCategory(String? name) {
     final icons = [
@@ -235,10 +173,10 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       theme.colorScheme.primaryContainer,
       theme.colorScheme.secondaryContainer,
       theme.colorScheme.tertiaryContainer,
-      theme.colorScheme.surfaceContainerHighest, // ou surfaceVariant
+      theme.colorScheme.surfaceContainerHighest,
     ];
     if (name == null || name.isEmpty) {
-      return theme.colorScheme.surfaceBright; // ou surface
+      return theme.colorScheme.surfaceBright;
     }
     return colors[name.hashCode % colors.length];
   }
@@ -250,7 +188,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
     if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
       try {
         final imageUrl = _supabase.storage
-            .from('sub.category.images') // Bucket des images de sous-catégories
+            .from('sub.category.images')
             .getPublicUrl(subCategoryImagePath);
         imageWidget = Image.network(
           imageUrl,
@@ -260,9 +198,6 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             return const Center(child: CircularProgressIndicator());
           },
           errorBuilder: (context, error, stackTrace) {
-            print(
-                "Erreur chargement image sous-catégorie (admin manage card): $error");
-            // Fallback à l'icône dynamique si l'image ne charge pas
             final icon = _getDynamicIconForSubCategory(subCategoryName);
             final color =
                 _getDynamicColorForSubCategory(subCategoryName, context);
@@ -272,8 +207,6 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
           },
         );
       } catch (e) {
-        print("Erreur construction URL image (admin manage card): $e");
-        // Fallback si l'URL ne peut être construite
         final icon = _getDynamicIconForSubCategory(subCategoryName);
         final color = _getDynamicColorForSubCategory(subCategoryName, context);
         imageWidget = Container(
@@ -281,7 +214,6 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             child: Icon(icon, color: color, size: 50));
       }
     } else {
-      // Pas de chemin d'image, utiliser l'icône dynamique
       final icon = _getDynamicIconForSubCategory(subCategoryName);
       final color = _getDynamicColorForSubCategory(subCategoryName, context);
       imageWidget = Container(
@@ -303,7 +235,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: imageWidget, // Utilise le widget image construit
+              child: imageWidget,
             ),
             Padding(
               padding: const EdgeInsets.all(10.0),
@@ -331,13 +263,10 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
           service.category == ServiceCategory.mixte;
     }).toList();
 
-    // Crée une map pour stocker le nom de la sous-catégorie et son image (si disponible)
     final Map<String, String?> subCategoryDetails = {};
     for (var service in relevantServices) {
       final subCategoryName = service.subCategory.trim();
       if (subCategoryName.isNotEmpty) {
-        // Si la sous-catégorie n'est pas encore dans la map, ou si elle y est mais sans image,
-        // et que le service actuel a une image pour cette sous-catégorie, on l'ajoute/met à jour.
         if (!subCategoryDetails.containsKey(subCategoryName) ||
             (subCategoryDetails[subCategoryName] == null &&
                 service.imagePlaceholderSousCategory != null &&
@@ -378,7 +307,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedSubCategoryName ?? 'Gérer les Services'),
+        title: Text(_selectedSubCategoryName ?? 'Modifier une Prestation'),
         leading: _selectedSubCategoryName != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new),
@@ -388,8 +317,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                   });
                 },
               )
-            : null, // Utilise le bouton retour par défaut de la navigation si non null
-        // Laisser null pour le comportement par défaut (menu hamburger ou bouton retour)
+            : null,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -398,7 +326,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                   child: Text(_errorMessage!,
                       style: const TextStyle(color: Colors.red)))
               : _services.isEmpty
-                  ? const Center(child: Text('Aucun service à gérer.'))
+                  ? const Center(child: Text('Aucun service à modifier.'))
                   : Column(
                       children: [
                         Padding(
@@ -421,8 +349,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                               setState(() {
                                 _selectedMainCategory =
                                     _displayCategories[index];
-                                _selectedSubCategoryName =
-                                    null; // Réinitialiser la sous-catégorie
+                                _selectedSubCategoryName = null;
                               });
                             },
                             children: _displayCategories.map((category) {
@@ -438,7 +365,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                                   text = 'Enfant';
                                   break;
                                 case ServiceCategory.mixte:
-                                  text = 'Mixte'; // Afficher "Mixte"
+                                  text = 'Mixte';
                                   break;
                               }
                               return Padding(
@@ -451,17 +378,15 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                         Expanded(
                           child: _selectedSubCategoryName == null
                               ? _buildSubCategorySelectionGrid()
-                              : _buildServiceListForDeletion(),
+                              : _buildServiceListForEditing(),
                         ),
                       ],
                     ),
     );
   }
 
-  Widget _buildServiceListForDeletion() {
+  Widget _buildServiceListForEditing() {
     final List<HaircutService> servicesToList = _services.where((service) {
-      // Filtre pour ne pas afficher les services "placeholder" de sous-catégorie
-      // qui sont utilisés uniquement pour stocker les métadonnées de la sous-catégorie.
       if (service.name.startsWith('[SOUS-CATÉGORIE]')) {
         return false;
       }
@@ -476,19 +401,18 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
 
     if (servicesToList.isEmpty) {
       return const Center(
-          child: Text('Aucun service pour cette sous-catégorie.'));
+          child: Text('Aucune prestation pour cette sous-catégorie.'));
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchServices, // Permet de rafraîchir la liste complète
+      onRefresh: _fetchServices,
       child: GridView.builder(
         padding: const EdgeInsets.all(12.0),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // Nombre de colonnes
+          crossAxisCount: 2,
           crossAxisSpacing: 12.0,
           mainAxisSpacing: 12.0,
-          childAspectRatio:
-              0.75, // Ajusté pour plus de contenu (image, textes, bouton)
+          childAspectRatio: 0.75,
         ),
         itemCount: servicesToList.length,
         itemBuilder: (context, index) {
@@ -498,65 +422,220 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             clipBehavior: Clip.antiAlias,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Container(
-                    // Ce container assure que _buildServiceImage remplit l'espace.
-                    // Si _buildServiceImage retourne un widget qui ne s'étend pas,
-                    // ce Container peut aider avec alignment ou un fond.
-                    // color: Colors.grey[200], // Placeholder background if needed
-                    child: _buildServiceImage(service, context),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        service.name,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                          fontSize: 14,
+            child: InkWell(
+              onTap: () => _navigateToEditForm(service),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildServiceImage(service, context),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.black.withOpacity(0.6),
+                            child: const Icon(
+                              Icons.edit_outlined,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${service.price.toStringAsFixed(2)} € - ${service.duration.inMinutes} min',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.secondary,
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Align(
-                  alignment: Alignment.center,
-                  child: IconButton(
-                    icon: Icon(Icons.delete_forever_outlined,
-                        color: Theme.of(context).colorScheme.error, size: 26),
-                    tooltip: 'Supprimer ce service',
-                    onPressed: () => _deleteService(service.id, service.name),
-                    padding: const EdgeInsets.only(bottom: 6.0),
-                    constraints: const BoxConstraints(),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(service.name,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 4),
+                        Text(
+                            '${service.price.toStringAsFixed(2)} € - ${service.duration.inMinutes} min',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Formulaire d'édition pour une prestation.
+class _EditServiceFormPage extends StatefulWidget {
+  final HaircutService service;
+
+  const _EditServiceFormPage({required this.service});
+
+  @override
+  State<_EditServiceFormPage> createState() => _EditServiceFormPageState();
+}
+
+class _EditServiceFormPageState extends State<_EditServiceFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _durationController;
+  late TextEditingController _priceController;
+
+  File? _selectedImageFile;
+  final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.service.name);
+    _durationController = TextEditingController(
+        text: widget.service.duration.inMinutes.toString());
+    _priceController =
+        TextEditingController(text: widget.service.price.toStringAsFixed(2));
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _durationController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? pickedFile =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if (pickedFile != null) {
+      setState(() => _selectedImageFile = File(pickedFile.path));
+    }
+  }
+
+  Future<void> _updateService() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      String? newImagePath;
+      // Gérer la mise à jour de l'image
+      if (_selectedImageFile != null) {
+        final String fileExtension =
+            _selectedImageFile!.path.split('.').last.toLowerCase();
+        final String fileName = '${widget.service.id}-service.$fileExtension';
+        newImagePath = 'public/$fileName';
+
+        // Uploader la nouvelle image (écrase l'ancienne si elle existe)
+        await _supabase.storage.from('service.images').upload(
+            newImagePath, _selectedImageFile!,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: true));
+      }
+
+      final dataToUpdate = {
+        'name': _nameController.text.trim(),
+        'duration_minutes': int.parse(_durationController.text.trim()),
+        'price': double.parse(_priceController.text.trim()),
+        if (newImagePath != null) 'image_placeholder': newImagePath,
+      };
+
+      await _supabase
+          .from('haircut_services')
+          .update(dataToUpdate)
+          .eq('id', widget.service.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Prestation mise à jour avec succès !'),
+          backgroundColor: Colors.green,
+        ));
+        Navigator.pop(
+            context, true); // Retourne true pour signaler la mise à jour
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Modifier "${widget.service.name}"'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration:
+                    const InputDecoration(labelText: 'Nom de la prestation'),
+                validator: (value) =>
+                    value!.isEmpty ? 'Le nom ne peut pas être vide.' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _durationController,
+                decoration: const InputDecoration(labelText: 'Durée (minutes)'),
+                keyboardType: TextInputType.number,
+                validator: (value) =>
+                    int.tryParse(value!) == null ? 'Durée invalide.' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _priceController,
+                decoration: const InputDecoration(labelText: 'Prix (€)'),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                validator: (value) =>
+                    double.tryParse(value!) == null ? 'Prix invalide.' : null,
+              ),
+              const SizedBox(height: 24),
+              if (_selectedImageFile != null)
+                Image.file(_selectedImageFile!, height: 150),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.image_search),
+                label: const Text('Changer l\'image'),
+                onPressed: _pickImage,
+              ),
+              const SizedBox(height: 24),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton(
+                      onPressed: _updateService,
+                      child: const Text('Enregistrer les modifications'),
+                    ),
+            ],
+          ),
+        ),
       ),
     );
   }

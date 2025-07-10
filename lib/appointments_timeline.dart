@@ -142,7 +142,7 @@ class AppointmentsTimeline extends StatelessWidget {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
 
               // --- Red line for current time ---
               if (isSelectedDayToday &&

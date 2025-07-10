@@ -94,14 +94,14 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Ajouter Service / Catégorie"),
+          title: const Text("Ajouter Catégorie / Service"),
           actions: const [LogoutButton()],
           bottom: TabBar(
             tabs: const [
-              Tab(icon: Icon(Icons.add), text: "Service"),
               Tab(
                   icon: Icon(Icons.create_new_folder_outlined),
                   text: "Sous-Catégorie"),
+              Tab(icon: Icon(Icons.add), text: "Service"),
             ],
             indicatorColor: Theme.of(context).colorScheme.onPrimary,
             labelColor: Theme.of(context).colorScheme.onPrimary,
@@ -111,6 +111,13 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
         ),
         body: TabBarView(
           children: [
+            _AddSubCategoryView(
+              existingSubCategories: _allSubCategories,
+              onSubCategoryAdded: () {
+                // Rafraîchit la liste des sous-catégories pour le premier onglet
+                _fetchExistingSubCategories();
+              },
+            ),
             _AddServiceView(
               subCategoriesByCategory: _subCategoriesByCategory,
               isLoadingSubCategories: _isLoadingSubCategories,
@@ -118,13 +125,6 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
                 if (mounted) {
                   Navigator.pop(context, true);
                 }
-              },
-            ),
-            _AddSubCategoryView(
-              existingSubCategories: _allSubCategories,
-              onSubCategoryAdded: () {
-                // Rafraîchit la liste des sous-catégories pour le premier onglet
-                _fetchExistingSubCategories();
               },
             ),
           ],
@@ -195,6 +195,27 @@ class _AddServiceViewState extends State<_AddServiceView> {
     final String serviceId = _idController.text.trim();
 
     try {
+      // Étape 1: Récupérer l'image de la sous-catégorie depuis le service "placeholder"
+      // pour la copier sur le nouveau service réel.
+      String? subCategoryImagePath;
+      try {
+        final placeholderResponse = await _supabase
+            .from('haircut_services')
+            .select('image_placeholder_sous_category')
+            .match({
+          'sub_category': _selectedSubCategory!,
+          'name': '[SOUS-CATÉGORIE] $_selectedSubCategory',
+          'category': _selectedCategory!
+        }).maybeSingle(); // Utiliser maybeSingle pour ne pas avoir d'erreur si non trouvé
+
+        if (placeholderResponse != null) {
+          subCategoryImagePath =
+              placeholderResponse['image_placeholder_sous_category'] as String?;
+        }
+      } catch (e) {
+        print("Info: n'a pas trouvé d'image pour la sous-catégorie: $e");
+      }
+
       // Upload de l'image du service si sélectionnée
       if (_selectedServiceImageFile != null) {
         final String fileExtension =
@@ -214,11 +235,26 @@ class _AddServiceViewState extends State<_AddServiceView> {
         'sub_category': _selectedSubCategory!,
         'category': _selectedCategory!,
         'image_placeholder': serviceImagePathForDb,
-        // L'image de la sous-catégorie est gérée via l'onglet "Ajouter une Sous-Catégorie"
-        'image_placeholder_sous_category': null,
+        // Étape 2: On copie le chemin de l'image de la sous-catégorie sur ce nouveau service.
+        'image_placeholder_sous_category': subCategoryImagePath,
       };
 
       await _supabase.from('haircut_services').insert(serviceData);
+
+      // Étape 3: On supprime le service "placeholder" maintenant qu'un vrai service existe
+      // et porte l'information de l'image de la sous-catégorie.
+      // On ne traite pas l'erreur, car il est possible qu'il ait déjà été supprimé.
+      try {
+        await _supabase.from('haircut_services').delete().match({
+          'sub_category': _selectedSubCategory!,
+          'name': '[SOUS-CATÉGORIE] $_selectedSubCategory',
+          'category': _selectedCategory!
+        });
+      } catch (e) {
+        // Log pour le débogage, mais pas d'erreur montrée à l'utilisateur.
+        print(
+            "Info: Le service placeholder n'a pas été supprimé (normal s'il n'existait plus): $e");
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -445,6 +481,10 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
   final SupabaseClient _supabase = Supabase.instance.client;
   final Uuid _uuid = const Uuid();
 
+  // Ajout pour la sélection de la catégorie parente
+  final List<String> _categories = ['homme', 'femme', 'enfant', 'mixte'];
+  String? _selectedCategoryForSubCategory;
+
   @override
   void dispose() {
     _subCategoryNameController.dispose();
@@ -491,7 +531,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
         'duration_minutes': 0,
         'price': 0.0,
         'sub_category': newName,
-        'category': 'mixte', // Catégorie par défaut
+        'category': _selectedCategoryForSubCategory!,
         'image_placeholder_sous_category': subCategoryImagePathForDb,
       };
 
@@ -506,6 +546,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
         _subCategoryNameController.clear();
         setState(() {
           _selectedSubCategoryImageFile = null;
+          _selectedCategoryForSubCategory = null;
         });
         widget
             .onSubCategoryAdded(); // Notifie le parent pour rafraîchir la liste
@@ -560,6 +601,31 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
+            DropdownButtonFormField<String>(
+              value: _selectedCategoryForSubCategory,
+              decoration: _buildInputDecoration(
+                context: context,
+                label: 'Associer à la catégorie*',
+                prefixIcon: Icons.category_outlined,
+              ),
+              hint: const Text('Sélectionnez une catégorie'),
+              items: _categories.map((String category) {
+                return DropdownMenuItem<String>(
+                  value: category,
+                  child:
+                      Text(category[0].toUpperCase() + category.substring(1)),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                setState(() {
+                  _selectedCategoryForSubCategory = newValue;
+                });
+              },
+              validator: (value) => value == null || value.isEmpty
+                  ? 'Veuillez sélectionner une catégorie.'
+                  : null,
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _subCategoryNameController,
               decoration: _buildInputDecoration(

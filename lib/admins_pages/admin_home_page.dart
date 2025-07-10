@@ -3,6 +3,8 @@ import 'package:soifapp/admins_pages/manage_coiffeurs_page.dart'; // Importer la
 import 'package:soifapp/admins_pages/add_haircut_service_page.dart'; // Importer la page d'ajout de service
 import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer pour voir le planning
 import 'package:soifapp/admins_pages/admin_delete_sub_category_page.dart'; // Importer la nouvelle page
+import 'package:soifapp/admins_pages/admin_edit_service_page.dart';
+import 'package:soifapp/admins_pages/admin_edit_sub_category_page.dart';
 import 'package:soifapp/admins_pages/admin_manage_services_page.dart'; // Importer la page de gestion des services
 import 'package:soifapp/admins_pages/admin_delete_coiffeur_page.dart';
 import 'package:soifapp/admins_pages/manage_absences_page.dart'; // Importer la page de gestion des absences
@@ -193,22 +195,41 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => const AdminDeleteCoiffeurPage()))),
+        // --- Section Prestations ---
         _buildActionCard(
             context: context,
             icon: Icons.add_shopping_cart_outlined,
-            title: 'Ajouter Service / Catégorie',
+            title: 'Ajouter Prestation',
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                     builder: (context) => const AddHaircutServicePage()))),
         _buildActionCard(
             context: context,
+            icon: Icons.edit_note_outlined,
+            title: 'Modifier Prestation',
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminEditServicePage()))),
+        _buildActionCard(
+            context: context,
             icon: Icons.list_alt_outlined,
-            title: 'Supprimer Services',
+            title: 'Supprimer Prestation',
+            iconColor: Colors.orange[800],
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                     builder: (context) => const AdminManageServicesPage()))),
+        // --- Section Catégories ---
+        _buildActionCard(
+            context: context,
+            icon: Icons.edit_attributes_outlined,
+            title: 'Modifier Catégorie',
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminEditSubCategoryPage()))),
         _buildActionCard(
             context: context,
             icon: Icons.delete_sweep_outlined,
@@ -218,6 +239,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => const AdminDeleteSubCategoryPage()))),
+        // Placeholder pour garder la grille alignée si besoin
       ],
     );
   }
