@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart'; // Import pour l'initialisation des locales
 import 'package:flutter_localizations/flutter_localizations.dart'; // Import pour les delegates
 import 'package:provider/provider.dart';
-import 'package:soifapp/auth_page.dart'; // Importez la nouvelle page
+// Importez la nouvelle page
 import 'package:soifapp/models/theme_provider.dart';
+import 'package:soifapp/welcome_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Importer Supabase
 import 'package:timezone/data/latest.dart' as tz; // Import pour timezone
 
@@ -106,6 +107,7 @@ class MyApp extends StatelessWidget {
     );
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'CoifApp',
       theme: lightTheme,
       darkTheme: darkTheme,
@@ -120,7 +122,7 @@ class MyApp extends StatelessWidget {
         Locale('fr', ''), // Français
         // ... autres locales supportées
       ],
-      home: const AuthPage(),
+      home: const WelcomePage(),
     );
   }
 }
