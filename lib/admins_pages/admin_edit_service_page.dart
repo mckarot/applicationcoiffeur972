@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 /// Page de sélection du service à modifier.
 /// Réutilise la logique de `AdminManageServicesPage` pour la navigation.
@@ -14,7 +16,7 @@ class AdminEditServicePage extends StatefulWidget {
 }
 
 class _AdminEditServicePageState extends State<AdminEditServicePage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<HaircutService> _services = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -41,12 +43,15 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
       _errorMessage = null;
     });
     try {
-      final data =
-          await _supabase.from('haircut_services').select().order('name');
+      final servicesSnapshot = await _firestore
+          .collection('haircut_services')
+          .orderBy('name')
+          .get();
       if (mounted) {
         setState(() {
-          _services =
-              data.map((item) => HaircutService.fromSupabase(item)).toList();
+          _services = servicesSnapshot.docs
+              .map((doc) => HaircutService.fromFirestore(doc))
+              .toList();
           _isLoading = false;
         });
       }
@@ -78,11 +83,8 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
 
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
     if (service.imagePlaceholder.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('service.images')
-            .getPublicUrl(service.imagePlaceholder);
-
+      // L'URL complète est maintenant stockée directement
+      final imageUrl = service.imagePlaceholder;
         return Image.network(
           imageUrl,
           fit: BoxFit.cover,
@@ -103,9 +105,6 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
             return _buildDefaultServiceIcon(service, context);
           },
         );
-      } catch (e) {
-        return _buildDefaultServiceIcon(service, context);
-      }
     }
     return _buildDefaultServiceIcon(service, context);
   }
@@ -140,6 +139,12 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
         baseColor = theme.brightness == Brightness.light
             ? Colors.purple[200]!
             : Colors.purple[700]!;
+        break;
+      case ServiceCategory.undefined:
+        iconData = Icons.help_outline;
+        baseColor = theme.brightness == Brightness.light
+            ? Colors.grey[400]!
+            : Colors.grey[600]!;
         break;
     }
 
@@ -186,10 +191,7 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
     Widget imageWidget;
 
     if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('sub.category.images')
-            .getPublicUrl(subCategoryImagePath);
+      final imageUrl = subCategoryImagePath;
         imageWidget = Image.network(
           imageUrl,
           fit: BoxFit.cover,
@@ -206,13 +208,6 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
                 child: Icon(icon, color: color, size: 50));
           },
         );
-      } catch (e) {
-        final icon = _getDynamicIconForSubCategory(subCategoryName);
-        final color = _getDynamicColorForSubCategory(subCategoryName, context);
-        imageWidget = Container(
-            color: color.withOpacity(0.15),
-            child: Icon(icon, color: color, size: 50));
-      }
     } else {
       final icon = _getDynamicIconForSubCategory(subCategoryName);
       final color = _getDynamicColorForSubCategory(subCategoryName, context);
@@ -367,6 +362,9 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
                                 case ServiceCategory.mixte:
                                   text = 'Mixte';
                                   break;
+                                case ServiceCategory.undefined:
+                                  text = 'Autre';
+                                  break;
                               }
                               return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -499,7 +497,8 @@ class _EditServiceFormPageState extends State<_EditServiceFormPage> {
   File? _selectedImageFile;
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   @override
   void initState() {
@@ -533,31 +532,43 @@ class _EditServiceFormPageState extends State<_EditServiceFormPage> {
     setState(() => _isLoading = true);
 
     try {
-      String? newImagePath;
+      String? newImageUrl;
       // Gérer la mise à jour de l'image
       if (_selectedImageFile != null) {
+        // Supprimer l'ancienne image si elle existe
+        if (widget.service.imagePlaceholder.isNotEmpty) {
+          try {
+            await _storage.refFromURL(widget.service.imagePlaceholder).delete();
+          } catch (e) {
+            print(
+                "Avertissement: L'ancienne image n'a pas pu être supprimée (peut-être qu'elle n'existait pas): $e");
+          }
+        }
+
+        // Uploader la nouvelle image
         final String fileExtension =
             _selectedImageFile!.path.split('.').last.toLowerCase();
-        final String fileName = '${widget.service.id}-service.$fileExtension';
-        newImagePath = 'public/$fileName';
+        final String fileName = '${const Uuid().v4()}.$fileExtension';
+        final Reference storageRef =
+            _storage.ref().child('service_images/$fileName');
 
-        // Uploader la nouvelle image (écrase l'ancienne si elle existe)
-        await _supabase.storage.from('service.images').upload(
-            newImagePath, _selectedImageFile!,
-            fileOptions: const FileOptions(cacheControl: '3600', upsert: true));
+        final UploadTask uploadTask = storageRef.putFile(_selectedImageFile!);
+        final TaskSnapshot snapshot = await uploadTask;
+        newImageUrl = await snapshot.ref.getDownloadURL();
       }
 
       final dataToUpdate = {
         'name': _nameController.text.trim(),
         'duration_minutes': int.parse(_durationController.text.trim()),
         'price': double.parse(_priceController.text.trim()),
-        if (newImagePath != null) 'image_placeholder': newImagePath,
+        'updated_at': FieldValue.serverTimestamp(),
+        if (newImageUrl != null) 'image_placeholder': newImageUrl,
       };
 
-      await _supabase
-          .from('haircut_services')
-          .update(dataToUpdate)
-          .eq('id', widget.service.id);
+      await _firestore
+          .collection('haircut_services')
+          .doc(widget.service.id)
+          .update(dataToUpdate);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

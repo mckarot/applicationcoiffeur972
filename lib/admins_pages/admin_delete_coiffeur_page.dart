@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 // Using a simple class for coiffeur info, similar to other admin pages.
 class CoiffeurInfo {
@@ -18,7 +19,8 @@ class AdminDeleteCoiffeurPage extends StatefulWidget {
 }
 
 class _AdminDeleteCoiffeurPageState extends State<AdminDeleteCoiffeurPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(region: 'europe-west1'); // Adaptez la région si besoin
   List<CoiffeurInfo> _coiffeurs = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -37,19 +39,16 @@ class _AdminDeleteCoiffeurPageState extends State<AdminDeleteCoiffeurPage> {
     });
 
     try {
-      // Fetch all users who have the 'coiffeur' role.
-      final profilesResponse = await _supabase
-          .from('profiles')
-          .select('id, nom')
-          .eq('role', 'coiffeur');
+      // Récupérer tous les utilisateurs avec le rôle 'coiffeur' depuis Firestore
+      final coiffeursSnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'coiffeur')
+          .get();
 
-      final List<Map<String, dynamic>> profilesData =
-          List<Map<String, dynamic>>.from(profilesResponse);
-
-      final List<CoiffeurInfo> fetchedCoiffeurs = profilesData
+      final List<CoiffeurInfo> fetchedCoiffeurs = coiffeursSnapshot.docs
           .map((profile) => CoiffeurInfo(
-                userId: profile['id'] as String,
-                name: profile['nom'] as String? ?? 'Nom Inconnu',
+                userId: profile.id,
+                name: profile.data()['nom'] as String? ?? 'Nom Inconnu',
               ))
           .toList();
 
@@ -97,12 +96,14 @@ class _AdminDeleteCoiffeurPageState extends State<AdminDeleteCoiffeurPage> {
     }
 
     try {
-      // Appeler la fonction de base de données 'delete_coiffeur_and_user'.
-      // C'est la méthode la plus propre et la plus sûre pour gérer les suppressions complexes.
-      await _supabase.rpc(
-        'delete_coiffeur_and_user',
-        params: {'user_id_to_delete': userId},
-      );
+      // Appel de la Cloud Function pour une suppression sécurisée
+      final HttpsCallable callable =
+          _functions.httpsCallable('deleteUserAndData');
+      final result = await callable.call<Map<String, dynamic>>({
+        'uid': userId,
+      });
+
+      print(result.data['message']);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

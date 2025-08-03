@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:soifapp/users_page/booking_page.dart'; // Importer la nouvelle page de réservation
 import 'package:soifapp/users_sign_up_page.dart'; // Importer la page d'inscription utilisateur
 import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer la page d'accueil coiffeur
@@ -18,53 +19,48 @@ class _AuthPageState extends State<AuthPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
     super.initState();
-    _supabase.auth.onAuthStateChange.listen((data) async {
-      final AuthChangeEvent event = data.event;
-      final Session? session = data.session;
-      if (event == AuthChangeEvent.signedIn && session != null) {
-        final userId = session.user.id;
-        // Récupère le profil depuis Supabase
-        final response = await _supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', userId)
-            .maybeSingle();
+    // Écoute les changements d'état d'authentification de Firebase
+    _auth.authStateChanges().listen((User? user) async {
+      if (user != null) {
+        // L'utilisateur est connecté, récupérons son rôle depuis Firestore
+        try {
+          final docSnapshot =
+              await _firestore.collection('users').doc(user.uid).get();
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        // Si le profil n'est pas trouvé (response est null), il peut s'agir d'un nouvel utilisateur
-        // dont le profil est en cours de création. On attend le prochain événement d'authentification
-        // (comme après la confirmation de l'e-mail) au lieu de planter.
-        // Cela résout la "race condition" lors de l'inscription.
-        if (response == null) {
-          // On pourrait logger cet événement, mais pour l'instant, on arrête l'exécution ici pour éviter l'erreur.
-          return;
-        }
+          if (docSnapshot.exists) {
+            final data = docSnapshot.data();
+            final role =
+                data?['role'] ?? 'client'; // 'client' est le rôle par défaut
 
-        final role = response['role'] ?? 'user';
-
-        if (role == 'user') {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const BookingPage()),
-          );
-        } else if (role == 'coiffeur') {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const CoiffeurHomePage()),
-          );
-        } else if (role == 'admin') {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const AdminHomePage()),
-          );
-        } else {
-          // Par défaut, page utilisateur
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const BookingPage()),
-          );
+            // Redirection en fonction du rôle
+            if (role == 'client') {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const BookingPage()),
+              );
+            } else if (role == 'coiffeur') {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                    builder: (context) => const CoiffeurHomePage()),
+              );
+            } else if (role == 'admin') {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const AdminHomePage()),
+              );
+            }
+          } else {
+            // Le document utilisateur n'existe pas encore.
+            debugPrint("Document utilisateur non trouvé pour l'UID: ${user.uid}");
+          }
+        } catch (e) {
+          debugPrint("Erreur lors de la récupération du rôle: $e");
         }
       }
     });
@@ -76,29 +72,25 @@ class _AuthPageState extends State<AuthPage> {
         _isLoading = true;
       });
       try {
-        final AuthResponse res = await _supabase.auth.signInWithPassword(
+        // La connexion avec Firebase Auth
+        await _auth.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-        // La navigation vers BookingPage est gérée par onAuthStateChange
-        // en cas de succès (res.user != null et session active).
-        // Si signInWithPassword réussit mais que l'utilisateur n'est pas confirmé,
-        // Supabase lèvera une AuthException qui sera attrapée ci-dessous.
+        // La navigation est gérée par le listener authStateChanges, donc pas besoin de code ici.
+      } on FirebaseAuthException catch (e) {
         if (mounted) {
-          if (res.user == null && res.session == null) {
-            // Ce cas est généralement couvert par AuthException pour les e-mails non confirmés ou les mauvais identifiants.
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text(
-                      'Échec de la connexion. Vérifiez vos identifiants ou confirmez votre e-mail.')),
-            );
+          String errorMessage = 'Une erreur de connexion est survenue.';
+          if (e.code == 'user-not-found' ||
+              e.code == 'wrong-password' ||
+              e.code == 'invalid-credential') {
+            errorMessage = 'Email ou mot de passe incorrect.';
+          } else if (e.code == 'invalid-email') {
+            errorMessage = 'Le format de l\'email est invalide.';
           }
-        }
-      } on AuthException catch (e) {
-        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur de connexion: ${e.message}')),
+            SnackBar(content: Text(errorMessage)),
           );
         }
       } catch (e) {

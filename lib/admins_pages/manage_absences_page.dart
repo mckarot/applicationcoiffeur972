@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -13,7 +13,7 @@ class ManageAbsencesPage extends StatefulWidget {
 }
 
 class ManageAbsencesPageState extends State<ManageAbsencesPage> {
-  final SupabaseClient _supabaseClient = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<Map<String, dynamic>> _coiffeurs = [];
   String? _selectedCoiffeurId;
   List<Map<String, dynamic>> _absences = [];
@@ -64,26 +64,37 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
   }
 
   Future<void> _fetchCoiffeurs() async {
-    final response = await _supabaseClient
-        .from('profiles')
-        .select('id, nom')
-        .eq('role', 'coiffeur');
-    if (!mounted) return;
-    setState(() {
-      _coiffeurs = List<Map<String, dynamic>>.from(response as List);
-    });
+    try {
+      final coiffeursSnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'coiffeur')
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _coiffeurs = coiffeursSnapshot.docs.map((doc) {
+          final data = doc.data();
+          return {'id': doc.id, 'nom': data['nom'] as String? ?? 'Nom inconnu'};
+        }).toList();
+      });
+    } catch (e) {
+      print("Erreur fetchCoiffeurs (ManageAbsencesPage): $e");
+    }
   }
 
   Future<void> _fetchAbsences() async {
     if (_selectedCoiffeurId == null) return;
-    final response = await _supabaseClient
-        .from('coiffeur_absences')
-        .select('id, start_time, end_time, reason')
-        .eq('coiffeur_user_id', _selectedCoiffeurId!)
-        .order('start_time', ascending: true);
+    final absencesSnapshot = await _firestore
+        .collection('coiffeur_absences')
+        .where('coiffeur_user_id', isEqualTo: _selectedCoiffeurId!)
+        .orderBy('start_time')
+        .get();
     if (!mounted) return;
     setState(() {
-      _absences = List<Map<String, dynamic>>.from(response as List);
+      _absences = absencesSnapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id; // Ajouter l'ID du document à la map
+        return data;
+      }).toList();
     });
   }
 
@@ -132,30 +143,34 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
     });
 
     try {
-      // Créer une liste d'absences pour chaque jour de la plage sélectionnée
-      final List<Map<String, dynamic>> absencesToInsert = [];
+      // Utiliser un batch pour insérer toutes les absences de manière atomique
+      final batch = _firestore.batch();
+
       for (var day = 0;
           day <= _endDate!.difference(_startDate!).inDays;
           day++) {
         final currentDate = _startDate!.add(Duration(days: day));
+
+        // Créer un nouveau document pour chaque absence
+        final newAbsenceRef = _firestore.collection('coiffeur_absences').doc();
 
         final tz.TZDateTime finalStartDate = _getDateTimeWithPeriod(
             currentDate, _selectedPeriod, true, _salonLocation!);
         final tz.TZDateTime finalEndDate = _getDateTimeWithPeriod(
             currentDate, _selectedPeriod, false, _salonLocation!);
 
-        absencesToInsert.add({
+        batch.set(newAbsenceRef, {
           'coiffeur_user_id': _selectedCoiffeurId,
-          'start_time': finalStartDate.toIso8601String(),
-          'end_time': finalEndDate.toIso8601String(),
+          'start_time': Timestamp.fromDate(finalStartDate),
+          'end_time': Timestamp.fromDate(finalEndDate),
           'reason': _reasonController.text.trim().isEmpty
               ? null
               : _reasonController.text.trim(),
+          'created_at': FieldValue.serverTimestamp(),
         });
       }
 
-      // Insérer toutes les absences en une seule requête
-      await _supabaseClient.from('coiffeur_absences').insert(absencesToInsert);
+      await batch.commit();
 
       if (!mounted) return;
 
@@ -181,11 +196,7 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
       _isLoading = true;
     });
     try {
-      await _supabaseClient
-          .from('coiffeur_absences')
-          .delete()
-          .eq('id', absenceId);
-
+      await _firestore.collection('coiffeur_absences').doc(absenceId).delete();
       if (!mounted) return;
 
       _fetchAbsences();
@@ -396,10 +407,10 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
                             );
                           }
                           final tz.TZDateTime startTime = tz.TZDateTime.from(
-                              DateTime.parse(absence['start_time'] as String),
+                              (absence['start_time'] as Timestamp).toDate(),
                               _salonLocation!);
                           final tz.TZDateTime endTime = tz.TZDateTime.from(
-                              DateTime.parse(absence['end_time'] as String),
+                              (absence['end_time'] as Timestamp).toDate(),
                               _salonLocation!);
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 4.0),

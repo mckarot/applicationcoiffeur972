@@ -1,0 +1,58 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "coiffure-salon",
+          "appId": "1:805489089422:android:892f895414ba0fba33e2df",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "coiffure-salon",
+          "appId": "1:805489089422:ios:daf4cc4f3639e21633e2df",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "coiffure-salon",
+          "appId": "1:805489089422:ios:daf4cc4f3639e21633e2df",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "coiffure-salon",
+          "configurations": {
+            "android": "1:805489089422:android:892f895414ba0fba33e2df",
+            "ios": "1:805489089422:ios:daf4cc4f3639e21633e2df",
+            "macos": "1:805489089422:ios:daf4cc4f3639e21633e2df",
+            "web": "1:805489089422:web:6dea6d712d34af6933e2df",
+            "windows": "1:805489089422:web:5e8988d8ac4d13f233e2df"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}

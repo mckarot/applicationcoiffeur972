@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:soifapp/admins_pages/activate_coiffeur_page.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Renommé pour être plus générique, car cette classe représentera tous les coiffeurs
 class CoiffeurManagementInfo {
-  final String userId;
+  final String uid;
   final String name;
-  // Nouvelle propriété pour indiquer si le coiffeur est actif (configuré dans la table 'coiffeurs')
   final bool isActive;
 
   CoiffeurManagementInfo(
-      {required this.userId, required this.name, required this.isActive});
+      {required this.uid, required this.name, required this.isActive});
+
+  factory CoiffeurManagementInfo.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return CoiffeurManagementInfo(
+      uid: doc.id,
+      name: data['nom'] ?? 'Nom inconnu',
+      isActive: data['actif'] ?? false,
+    );
+  }
 }
 
 class ManageCoiffeursPage extends StatefulWidget {
@@ -21,20 +28,18 @@ class ManageCoiffeursPage extends StatefulWidget {
 }
 
 class _ManageCoiffeursPageState extends State<ManageCoiffeursPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
-  List<CoiffeurManagementInfo> _coiffeurs =
-      []; // Renommé pour refléter tous les coiffeurs
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List<CoiffeurManagementInfo> _coiffeurs = [];
   bool _isLoading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _fetchAllCoiffeurs(); // Appel à la nouvelle fonction
+    _fetchAllCoiffeurs();
   }
 
   Future<void> _fetchAllCoiffeurs() async {
-    // Renommé
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -42,49 +47,26 @@ class _ManageCoiffeursPageState extends State<ManageCoiffeursPage> {
     });
 
     try {
-      // 1. Récupérer tous les utilisateurs avec le rôle 'coiffeur' depuis 'profiles'
-      final profilesResponse = await _supabase
-          .from('profiles')
-          .select('id, nom')
-          .eq('role', 'coiffeur');
+      // Récupérer tous les utilisateurs avec le rôle 'coiffeur' depuis la collection 'users'
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'coiffeur')
+          .get();
 
-      // 2. Récupérer tous les user_id des coiffeurs déjà actifs/configurés dans la table 'coiffeurs'
-      final activeCoiffeursResponse =
-          await _supabase.from('coiffeurs').select('user_id');
-
-      final List<Map<String, dynamic>> allCoiffeurProfiles =
-          List<Map<String, dynamic>>.from(profilesResponse);
-      final List<Map<String, dynamic>> activeCoiffeurs =
-          List<Map<String, dynamic>>.from(activeCoiffeursResponse);
-
-      final Set<String> activeCoiffeurUserIds =
-          activeCoiffeurs.map((c) => c['user_id'] as String).toSet();
-
-      final List<CoiffeurManagementInfo> fetchedCoiffeurs = []; // Renommé
-      for (var profile in allCoiffeurProfiles) {
-        final userId = profile['id'] as String;
-        final bool isActive = activeCoiffeurUserIds
-            .contains(userId); // Détermine si le coiffeur est actif
-        fetchedCoiffeurs.add(CoiffeurManagementInfo(
-          userId: userId,
-          name: profile['nom'] as String? ?? 'Nom inconnu',
-          isActive: isActive, // Passe le statut d'activité
-        ));
-      }
+      final fetchedCoiffeurs = querySnapshot.docs
+          .map((doc) => CoiffeurManagementInfo.fromFirestore(doc))
+          .toList();
 
       if (mounted) {
         setState(() {
-          _coiffeurs =
-              fetchedCoiffeurs; // Met à jour la liste de tous les coiffeurs
+          _coiffeurs = fetchedCoiffeurs;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        print("Erreur _fetchAllCoiffeurs: $e"); // Mise à jour du message de log
         setState(() {
-          _errorMessage =
-              "Erreur lors de la récupération des coiffeurs: ${e.toString()}"; // Message d'erreur plus générique
+          _errorMessage = "Erreur lors de la récupération des coiffeurs: $e";
           _isLoading = false;
         });
       }
@@ -95,7 +77,7 @@ class _ManageCoiffeursPageState extends State<ManageCoiffeursPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Gérer tous les Coiffeurs"), // Titre mis à jour
+        title: const Text("Gérer les Coiffeurs"),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -103,59 +85,47 @@ class _ManageCoiffeursPageState extends State<ManageCoiffeursPage> {
               ? Center(
                   child: Text(_errorMessage!,
                       style: const TextStyle(color: Colors.red)))
-              : _coiffeurs
-                      .isEmpty // Vérifie si la liste de tous les coiffeurs est vide
-                  ? const Center(
-                      child:
-                          Text("Aucun coiffeur trouvé.")) // Message mis à jour
+              : _coiffeurs.isEmpty
+                  ? const Center(child: Text("Aucun coiffeur trouvé."))
                   : RefreshIndicator(
-                      onRefresh:
-                          _fetchAllCoiffeurs, // Rafraîchit tous les coiffeurs
+                      onRefresh: _fetchAllCoiffeurs,
                       child: ListView.builder(
-                        itemCount: _coiffeurs
-                            .length, // Utilise la liste de tous les coiffeurs
+                        itemCount: _coiffeurs.length,
                         itemBuilder: (context, index) {
-                          final coiffeur =
-                              _coiffeurs[index]; // Récupère le coiffeur
+                          final coiffeur = _coiffeurs[index];
                           return Card(
                             margin: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 5),
                             child: ListTile(
                               title: Text(coiffeur.name),
-                              subtitle: Column(
-                                // Affiche l'email et le statut
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    coiffeur.isActive
-                                        ? 'Statut: Actif'
-                                        : 'Statut: En attente d\'activation',
-                                    style: TextStyle(
-                                      color: coiffeur.isActive
-                                          ? Colors.green[700]
-                                          : Colors.orange[700],
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                              subtitle: Text(
+                                coiffeur.isActive
+                                    ? 'Statut: Actif'
+                                    : 'Statut: En attente d\'activation',
+                                style: TextStyle(
+                                  color: coiffeur.isActive
+                                      ? Colors.green[700]
+                                      : Colors.orange[700],
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               trailing: ElevatedButton(
                                 child: Text(coiffeur.isActive
                                     ? 'Modifier'
-                                    : 'Activer'), // Texte du bouton dynamique
+                                    : 'Activer'),
                                 onPressed: () async {
                                   final result = await Navigator.push<bool>(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           ActivateCoiffeurPage(
-                                        userId: coiffeur.userId,
+                                        userId: coiffeur.uid,
                                         userName: coiffeur.name,
                                       ),
                                     ),
                                   );
                                   if (result == true && mounted) {
-                                    _fetchAllCoiffeurs(); // Recharger la liste après modification/activation
+                                    _fetchAllCoiffeurs();
                                   }
                                 },
                               ),

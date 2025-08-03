@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Importer Supabase
 
 class SelectServicePage extends StatefulWidget {
   final List<HaircutService> allServices;
@@ -15,44 +14,35 @@ class _SelectServicePageState extends State<SelectServicePage> {
   ServiceCategory _selectedMainCategory =
       ServiceCategory.femme; // Catégorie par défaut
   String? _selectedSubCategoryName;
-  final SupabaseClient _supabase =
-      Supabase.instance.client; // Instance de Supabase
 
   // Helper pour afficher l'image du service ou une icône par défaut
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
     final theme = Theme.of(context);
 
     if (service.imagePlaceholder.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('service.images') // Assurez-vous que c'est le bon bucket
-            .getPublicUrl(service.imagePlaceholder);
-
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8.0),
-          child: Image.network(
-            imageUrl,
-            width: 80,
-            height: 80,
-            fit: BoxFit.cover,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Container(
-                  width: 80,
-                  height: 80,
-                  alignment: Alignment.center,
-                  child: const CircularProgressIndicator(strokeWidth: 2.0));
-            },
-            errorBuilder: (context, error, stackTrace) {
-              print("Erreur chargement image service (select service): $error");
-              return _buildDefaultServiceIcon(service, theme);
-            },
-          ),
-        );
-      } catch (e) {
-        print("Erreur construction URL image service (select service): $e");
-        return _buildDefaultServiceIcon(service, theme);
-      }
+      // L'URL complète est maintenant stockée dans le champ imagePlaceholder
+      final imageUrl = service.imagePlaceholder;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8.0),
+        child: Image.network(
+          imageUrl,
+          width: 80,
+          height: 80,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+                width: 80,
+                height: 80,
+                alignment: Alignment.center,
+                child: const CircularProgressIndicator(strokeWidth: 2.0));
+          },
+          errorBuilder: (context, error, stackTrace) {
+            print("Erreur chargement image service (select service): $error");
+            return _buildDefaultServiceIcon(service, theme);
+          },
+        ),
+      );
     }
     return _buildDefaultServiceIcon(service, theme);
   }
@@ -81,8 +71,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
             : Colors.green[700]!;
         break;
       case ServiceCategory.mixte:
-      // ignore: unreachable_switch_default
-      default:
+      case ServiceCategory.undefined:
         iconData = Icons.spa_rounded;
         baseColor = theme.brightness == Brightness.light
             ? Colors.purple[200]!
@@ -140,38 +129,27 @@ class _SelectServicePageState extends State<SelectServicePage> {
     Widget imageWidget;
 
     if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('sub.category.images') // Bucket des images de sous-catégories
-            .getPublicUrl(subCategoryImagePath);
-        imageWidget = Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return const Center(child: CircularProgressIndicator());
-          },
-          errorBuilder: (context, error, stackTrace) {
-            print(
-                "Erreur chargement image sous-catégorie (select service card): $error");
-            // Fallback à l'icône dynamique si l'image ne charge pas
-            final icon = _getDynamicIconForSubCategory(subCategoryName);
-            final color =
-                _getDynamicColorForSubCategory(subCategoryName, context);
-            return Container(
-                color: color.withOpacity(0.15),
-                child: Icon(icon, color: color, size: 50));
-          },
-        );
-      } catch (e) {
-        print("Erreur construction URL image (select service card): $e");
-        // Fallback si l'URL ne peut être construite
-        final icon = _getDynamicIconForSubCategory(subCategoryName);
-        final color = _getDynamicColorForSubCategory(subCategoryName, context);
-        imageWidget = Container(
-            color: color.withOpacity(0.15),
-            child: Icon(icon, color: color, size: 50));
-      }
+      // L'URL complète est maintenant stockée dans le champ
+      final imageUrl = subCategoryImagePath;
+      imageWidget = Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print(
+              "Erreur chargement image sous-catégorie (select service card): $error");
+          // Fallback à l'icône dynamique si l'image ne charge pas
+          final icon = _getDynamicIconForSubCategory(subCategoryName);
+          final color =
+              _getDynamicColorForSubCategory(subCategoryName, context);
+          return Container(
+              color: color.withOpacity(0.15),
+              child: Icon(icon, color: color, size: 50));
+        },
+      );
     } else {
       // Pas de chemin d'image, utiliser l'icône dynamique
       final icon = _getDynamicIconForSubCategory(subCategoryName);
@@ -321,6 +299,9 @@ class _SelectServicePageState extends State<SelectServicePage> {
                     break;
                   case ServiceCategory.mixte:
                     text = 'Mixte'; // Afficher "Mixte"
+                    break;
+                  case ServiceCategory.undefined:
+                    text = 'Autre'; // Ne devrait pas être affiché
                 }
                 return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),

@@ -1,4 +1,6 @@
-enum ServiceCategory { homme, femme, enfant, mixte }
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+enum ServiceCategory { homme, femme, enfant, mixte, undefined }
 
 // Helper pour parser la catégorie depuis une chaîne
 ServiceCategory serviceCategoryFromString(String categoryString) {
@@ -13,9 +15,9 @@ ServiceCategory serviceCategoryFromString(String categoryString) {
       return ServiceCategory.mixte;
     default:
       // Il est bon de loguer la valeur inconnue pour faciliter le débogage.
-      print(
-          "Erreur: Chaîne de catégorie de service inconnue reçue: '$categoryString'");
-      throw ArgumentError('Unknown service category: $categoryString');
+      print("Avertissement: Catégorie de service inconnue reçue: '$categoryString'. Utilisation de 'undefined'.");
+      // Retourner une valeur par défaut au lieu de lancer une erreur pour plus de robustesse
+      return ServiceCategory.undefined;
   }
 }
 
@@ -47,18 +49,31 @@ class HaircutService {
     this.imagePlaceholderSousCategory, // Ajouté ici
   });
 
-  factory HaircutService.fromSupabase(Map<String, dynamic> data) {
+  // Factory pour créer une instance depuis un document Firestore
+  factory HaircutService.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
     return HaircutService(
-      id: data['id'] as String,
+      id: doc.id,
       name: data['name'] as String,
       duration: Duration(minutes: data['duration_minutes'] as int),
       price: (data['price'] as num).toDouble(),
       subCategory: data['sub_category'] as String,
-      category: serviceCategoryFromString(
-          data['category'] as String), // Utilise la fonction publique
+      category: serviceCategoryFromString(data['category'] as String? ?? 'undefined'),
       imagePlaceholder: data['image_placeholder'] as String? ?? '',
-      imagePlaceholderSousCategory:
-          data['image_placeholder_sous_category'] as String?, // Nouveau champ
+      imagePlaceholderSousCategory: data['image_placeholder_sous_category'] as String?,
     );
+  }
+
+  // Méthode pour convertir l'instance en Map pour l'écriture dans Firestore
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'duration_minutes': duration.inMinutes,
+      'price': price,
+      'sub_category': subCategory,
+      'category': category.toJson(),
+      'image_placeholder': imagePlaceholder,
+      'image_placeholder_sous_category': imagePlaceholderSousCategory,
+    };
   }
 }

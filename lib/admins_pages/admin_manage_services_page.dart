@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:soifapp/models/haircut_service.dart'; // Assurez-vous que le chemin est correct
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminManageServicesPage extends StatefulWidget {
   const AdminManageServicesPage({super.key});
@@ -11,7 +12,8 @@ class AdminManageServicesPage extends StatefulWidget {
 }
 
 class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   List<HaircutService> _services = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -40,13 +42,13 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       _errorMessage = null;
     });
     try {
-      final List<Map<String, dynamic>> servicesData =
-          await _supabase.from('haircut_services').select().order('name');
+      final servicesSnapshot =
+          await _firestore.collection('haircut_services').orderBy('name').get();
 
       if (mounted) {
         setState(() {
-          _services = servicesData
-              .map((data) => HaircutService.fromSupabase(data))
+          _services = servicesSnapshot.docs
+              .map((doc) => HaircutService.fromFirestore(doc))
               .toList();
           _isLoading = false;
         });
@@ -65,14 +67,9 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
   // Helper pour l'affichage de l'image du service (similaire à SelectServicePage)
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
     if (service.imagePlaceholder.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('service.images')
-            .getPublicUrl(service.imagePlaceholder);
-
-        // Utilisation de ClipRRect pour s'assurer que l'image respecte les coins arrondis
-        // si la carte elle-même ne le fait pas assez pour l'image (bien que Clip.antiAlias sur Card aide).
-        return Image.network(
+      // L'URL complète est maintenant stockée directement
+      final imageUrl = service.imagePlaceholder;
+      return Image.network(
           imageUrl,
           fit: BoxFit.cover,
           loadingBuilder: (BuildContext context, Widget child,
@@ -93,10 +90,6 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             return _buildDefaultServiceIcon(service, context);
           },
         );
-      } catch (e) {
-        print("Erreur construction URL image (admin): $e");
-        return _buildDefaultServiceIcon(service, context);
-      }
     }
     return _buildDefaultServiceIcon(service, context);
   }
@@ -132,6 +125,12 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             ? Colors.purple[200]!
             : Colors.purple[700]!;
         break;
+      case ServiceCategory.undefined:
+        iconData = Icons.help_outline;
+        baseColor = theme.brightness == Brightness.light
+            ? Colors.grey[400]!
+            : Colors.grey[600]!;
+        break;
     }
     // Le CircleAvatar précédent était redondant et non le style final visé.
     // Le widget correct à retourner est le Container ci-dessous.
@@ -144,7 +143,8 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
     );
   }
 
-  Future<void> _deleteService(String serviceId, String serviceName) async {
+  Future<void> _deleteService(
+      String serviceId, String serviceName, String imageUrl) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -172,8 +172,19 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
     final String? currentSubCategory = _selectedSubCategoryName;
 
     try {
-      await _supabase.from('haircut_services').delete().eq('id', serviceId);
+      // 1. Supprimer le document de Firestore
+      await _firestore.collection('haircut_services').doc(serviceId).delete();
 
+      // 2. Supprimer l'image associée de Firebase Storage, si elle existe
+      if (imageUrl.isNotEmpty) {
+        try {
+          await _storage.refFromURL(imageUrl).delete();
+        } catch (e) {
+          // Ne pas bloquer si l'image n'existe pas ou si une erreur se produit
+          print("Avertissement: L'image $imageUrl n'a pas pu être supprimée: $e");
+        }
+      }
+      
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -195,16 +206,8 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
     } catch (e) {
       if (!mounted) return;
 
-      String errorMessage = 'Erreur lors de la suppression.';
-      if (e is PostgrestException &&
-          e.message.contains('foreign key constraint')) {
-        errorMessage =
-            'Ce service ne peut pas être supprimé car il est utilisé (ex: dans un rendez-vous).';
-      } else {
-        print('Erreur lors de la suppression du service: $e');
-        errorMessage = 'Une erreur est survenue lors de la suppression.';
-      }
-
+      print('Erreur lors de la suppression du service: $e');
+      const errorMessage = 'Une erreur est survenue lors de la suppression.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
@@ -248,11 +251,8 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
     Widget imageWidget;
 
     if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('sub.category.images') // Bucket des images de sous-catégories
-            .getPublicUrl(subCategoryImagePath);
-        imageWidget = Image.network(
+      final imageUrl = subCategoryImagePath;
+      imageWidget = Image.network(
           imageUrl,
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
@@ -271,15 +271,6 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                 child: Icon(icon, color: color, size: 50));
           },
         );
-      } catch (e) {
-        print("Erreur construction URL image (admin manage card): $e");
-        // Fallback si l'URL ne peut être construite
-        final icon = _getDynamicIconForSubCategory(subCategoryName);
-        final color = _getDynamicColorForSubCategory(subCategoryName, context);
-        imageWidget = Container(
-            color: color.withOpacity(0.15),
-            child: Icon(icon, color: color, size: 50));
-      }
     } else {
       // Pas de chemin d'image, utiliser l'icône dynamique
       final icon = _getDynamicIconForSubCategory(subCategoryName);
@@ -440,6 +431,9 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                                 case ServiceCategory.mixte:
                                   text = 'Mixte'; // Afficher "Mixte"
                                   break;
+                                case ServiceCategory.undefined:
+                                  text = 'Autre';
+                                  break;
                               }
                               return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -548,7 +542,8 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                     icon: Icon(Icons.delete_forever_outlined,
                         color: Theme.of(context).colorScheme.error, size: 26),
                     tooltip: 'Supprimer ce service',
-                    onPressed: () => _deleteService(service.id, service.name),
+                    onPressed: () => _deleteService(
+                        service.id, service.name, service.imagePlaceholder),
                     padding: const EdgeInsets.only(bottom: 6.0),
                     constraints: const BoxConstraints(),
                   ),

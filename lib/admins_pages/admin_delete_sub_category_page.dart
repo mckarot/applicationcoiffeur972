@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminDeleteSubCategoryPage extends StatefulWidget {
   const AdminDeleteSubCategoryPage({super.key});
@@ -12,7 +13,8 @@ class AdminDeleteSubCategoryPage extends StatefulWidget {
 
 class _AdminDeleteSubCategoryPageState
     extends State<AdminDeleteSubCategoryPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   List<HaircutService> _services = []; // Pour déduire les sous-catégories
   bool _isLoading = true;
   String? _errorMessage;
@@ -38,13 +40,15 @@ class _AdminDeleteSubCategoryPageState
       _errorMessage = null;
     });
     try {
-      final List<Map<String, dynamic>> servicesData =
-          await _supabase.from('haircut_services').select().order('name');
+      final servicesSnapshot = await _firestore
+          .collection('haircut_services')
+          .orderBy('name')
+          .get();
 
       if (mounted) {
         setState(() {
-          _services = servicesData
-              .map((data) => HaircutService.fromSupabase(data))
+          _services = servicesSnapshot.docs
+              .map((doc) => HaircutService.fromFirestore(doc))
               .toList();
           _isLoading = false;
         });
@@ -95,40 +99,31 @@ class _AdminDeleteSubCategoryPageState
     Widget imageWidget;
 
     if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('sub.category.images') // Bucket des images de sous-catégories
-            .getPublicUrl(subCategoryImagePath);
-        imageWidget = Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return const Center(child: CircularProgressIndicator());
-          },
-          errorBuilder: (context, error, stackTrace) {
-            final icon = _getDynamicIconForSubCategory(subCategoryName);
-            final color =
-                _getDynamicColorForSubCategory(subCategoryName, context);
-            return Container(
-                color: color.withOpacity(0.15),
-                child: Icon(icon, color: color, size: 50));
-          },
-        );
-      } catch (e) {
+      // L'URL complète est maintenant stockée directement dans le champ
+      final imageUrl = subCategoryImagePath;
+      imageWidget = Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) {
+          final icon = _getDynamicIconForSubCategory(subCategoryName);
+          final color =
+              _getDynamicColorForSubCategory(subCategoryName, context);
+          return Container(
+              color: color.withOpacity(0.15),
+              child: Icon(icon, color: color, size: 50));
+        },
+      );
+    } else {
         final icon = _getDynamicIconForSubCategory(subCategoryName);
         final color = _getDynamicColorForSubCategory(subCategoryName, context);
         imageWidget = Container(
             color: color.withOpacity(0.15),
             child: Icon(icon, color: color, size: 50));
       }
-    } else {
-      final icon = _getDynamicIconForSubCategory(subCategoryName);
-      final color = _getDynamicColorForSubCategory(subCategoryName, context);
-      imageWidget = Container(
-          color: color.withOpacity(0.15),
-          child: Icon(icon, color: color, size: 50));
-    }
 
     return Card(
       elevation: 3,
@@ -218,7 +213,7 @@ class _AdminDeleteSubCategoryPageState
         return AlertDialog(
           title: const Text('Confirmer la suppression'),
           content: Text(
-              'Voulez-vous vraiment supprimer la sous-catégorie "$subCategoryName" (${mainCategory.name}) et TOUS les services qu\'elle contient ? Cette action est irréversible.'),
+              'Voulez-vous vraiment supprimer la sous-catégorie "$subCategoryName" (${mainCategory.toJson()}) et TOUS les services qu\'elle contient ? Cette action est irréversible.'),
           actions: <Widget>[
             TextButton(
               child: const Text('Annuler'),
@@ -244,53 +239,54 @@ class _AdminDeleteSubCategoryPageState
       String subCategoryName, ServiceCategory mainCategory) async {
     setState(() => _isLoading = true);
     try {
-      // Récupérer les services à supprimer pour potentiellement supprimer leurs images
-      final servicesToDeleteResponse = await _supabase
-          .from('haircut_services')
-          .select(
-              'id, image_placeholder') // On a besoin de l'image_placeholder du service
-          .eq('sub_category', subCategoryName)
-          .eq('category',
-              mainCategory.name); // Utiliser mainCategory.name pour la requête
+      // 1. Trouver tous les services dans la sous-catégorie à supprimer
+      final servicesSnapshot = await _firestore
+ .collection('haircut_services')
+          .where('sub_category', isEqualTo: subCategoryName)
+          .where('category', isEqualTo: mainCategory.toJson())
+          .get();
 
-      final List<Map<String, dynamic>> servicesToDeleteData =
-          List<Map<String, dynamic>>.from(servicesToDeleteResponse);
-      List<String> serviceImagePathsToDelete = [];
+      if (servicesSnapshot.docs.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aucun service trouvé à supprimer.')),
+          );
+        }
+        return;
+      }
 
-      for (var serviceData in servicesToDeleteData) {
-        if (serviceData['image_placeholder'] != null &&
-            (serviceData['image_placeholder'] as String).isNotEmpty) {
-          serviceImagePathsToDelete
-              .add(serviceData['image_placeholder'] as String);
+      final List<String> serviceImageUrlsToDelete = [];
+      for (final doc in servicesSnapshot.docs) {
+        final data = doc.data();
+        if (data['image_placeholder'] != null &&
+            (data['image_placeholder'] as String).isNotEmpty) {
+          serviceImageUrlsToDelete.add(data['image_placeholder'] as String);
         }
       }
 
-      // Supprimer les services de la base de données
-      await _supabase
-          .from('haircut_services')
-          .delete()
-          .eq('sub_category', subCategoryName)
-          .eq('category',
-              mainCategory.name); // Utiliser mainCategory.name pour la requête
-
-      // Supprimer les images des services du bucket 'service.images'
-      if (serviceImagePathsToDelete.isNotEmpty) {
-        final result = await _supabase.storage
-            .from('service.images')
-            .remove(serviceImagePathsToDelete);
-        // Vous pouvez vérifier result pour les erreurs de suppression d'images si nécessaire
-        print('Résultat suppression images services: $result');
+      // 2. Supprimer les documents de Firestore en une seule opération (batch)
+      final batch = _firestore.batch();
+      for (final doc in servicesSnapshot.docs) {
+        batch.delete(doc.reference);
       }
+      await batch.commit();
 
-      // Note: La suppression de 'image_placeholder_sous_category' est plus complexe
-      // car elle est partagée et sa logique de suppression unique n'est pas définie ici.
-      // Pour l'instant, nous ne supprimons que les images directes des services.
+      // 3. Supprimer les images de Firebase Storage
+      for (final imageUrl in serviceImageUrlsToDelete) {
+        try {
+          if (imageUrl.contains('firebasestorage.googleapis.com')) {
+            await _storage.refFromURL(imageUrl).delete();
+          }
+        } catch (e) {
+          print('Erreur lors de la suppression de l\'image $imageUrl: $e');
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
-                  'Sous-catégorie "$subCategoryName" (${mainCategory.name}) et ses services supprimés.'),
+                  'Sous-catégorie "$subCategoryName" (${mainCategory.toJson()}) et ses services supprimés.'),
               backgroundColor: Colors.green),
         );
         _fetchServices(); // Recharger la liste
@@ -348,9 +344,12 @@ class _AdminDeleteSubCategoryPageState
                         children: _displayCategories.map((category) {
                           return Padding(
                               padding:
-                                  const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: Text(category.name[0].toUpperCase() +
-                                  category.name.substring(1)));
+                                  const EdgeInsets.symmetric(horizontal: 12.0),
+                              child: Text(
+                                category.toJson()[0].toUpperCase() +
+                                    category.toJson().substring(1),
+                                style: const TextStyle(fontSize: 12),
+                              ));
                         }).toList(),
                       ),
                     ),

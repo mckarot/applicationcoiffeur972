@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:soifapp/auth_page.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LogoutButton extends StatelessWidget {
   const LogoutButton({super.key});
@@ -34,7 +35,7 @@ class LogoutButton extends StatelessWidget {
     );
 
     if (confirm == true) {
-      await Supabase.instance.client.auth.signOut();
+      await FirebaseAuth.instance.signOut();
       // S'assurer que le widget est toujours monté avant de naviguer
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(

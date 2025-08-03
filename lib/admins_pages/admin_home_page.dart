@@ -10,7 +10,7 @@ import 'package:soifapp/admins_pages/admin_delete_coiffeur_page.dart';
 import 'package:soifapp/admins_pages/manage_absences_page.dart'; // Importer la page de gestion des absences
 import 'package:soifapp/admins_pages/sign_up_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ActiveCoiffeurInfo {
   final String userId;
@@ -27,7 +27,7 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<ActiveCoiffeurInfo> _activeCoiffeurs = [];
   bool _isLoadingCoiffeurs = true;
   String? _errorMessage;
@@ -46,50 +46,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
     });
 
     try {
-      // 1. Récupérer les coiffeurs actifs de la table 'coiffeurs'
-      final activeCoiffeursResponse =
-          await _supabase.from('coiffeurs').select('user_id').eq('actif', true);
+      // Récupérer les coiffeurs actifs directement depuis la collection 'users'
+      final coiffeursSnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'coiffeur')
+          .where('actif', isEqualTo: true)
+          .get();
 
-      final List<Map<String, dynamic>> activeCoiffeursData =
-          List<Map<String, dynamic>>.from(activeCoiffeursResponse);
-
-      if (activeCoiffeursData.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _activeCoiffeurs = [];
-            _isLoadingCoiffeurs = false;
-          });
-        }
-        return;
-      }
-
-      final List<String> userIds =
-          activeCoiffeursData.map((c) => c['user_id'] as String).toList();
-
-      // 2. Récupérer les noms de ces coiffeurs depuis la table 'profiles'
-      final profilesResponse = await _supabase
-          .from('profiles')
-          .select('id, nom')
-          .filter(
-              'id', 'in', userIds); // Utiliser filter() comme alternative à in_
-
-      final List<Map<String, dynamic>> profilesData =
-          List<Map<String, dynamic>>.from(profilesResponse);
-      final Map<String, String> userIdToNameMap = {
-        for (var profile in profilesData)
-          profile['id'] as String: profile['nom'] as String? ?? 'Nom Inconnu'
-      };
-
-      final List<ActiveCoiffeurInfo> fetchedCoiffeurs = [];
-      for (var coiffeurData in activeCoiffeursData) {
-        final userId = coiffeurData['user_id'] as String;
-        if (userIdToNameMap.containsKey(userId)) {
-          fetchedCoiffeurs.add(ActiveCoiffeurInfo(
-            userId: userId,
-            name: userIdToNameMap[userId]!,
-          ));
-        }
-      }
+      final List<ActiveCoiffeurInfo> fetchedCoiffeurs =
+          coiffeursSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return ActiveCoiffeurInfo(
+          userId: doc.id,
+          name: data['nom'] as String? ?? 'Nom Inconnu',
+        );
+      }).toList();
 
       if (mounted) {
         setState(() {

@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 class ScheduleEntry {
   final String id;
@@ -32,7 +34,6 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
   bool _isFetchingInitialData = true;
 
   File? _selectedPhotoFile;
-  String? _existingPhotoPath;
   String? _existingPublicUrl;
   final ImagePicker _picker = ImagePicker();
 
@@ -55,7 +56,8 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
     'Dimanche'
   ];
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   @override
   void initState() {
@@ -65,25 +67,18 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
 
   Future<void> _loadInitialData() async {
     try {
-      final response = await _supabase
-          .from('coiffeurs')
-          .select()
-          .eq('user_id', widget.userId)
-          .maybeSingle();
+      final docSnapshot =
+          await _firestore.collection('users').doc(widget.userId).get();
 
-      if (mounted && response != null) {
+      if (mounted && docSnapshot.exists) {
+        final data = docSnapshot.data()!;
         setState(() {
           _specialitesController.text =
-              (response['specialites'] as List<dynamic>?)?.join(', ') ?? '';
-          _bioController.text = response['description_bio'] ?? '';
-          _isActif = response['actif'] ?? true;
-          _existingPhotoPath = response['photo_url'];
-
-          if (_existingPhotoPath != null && _existingPhotoPath!.isNotEmpty) {
-            _existingPublicUrl = _supabase.storage
-                .from('photos.coiffeurs')
-                .getPublicUrl(_existingPhotoPath!);
-          }
+              (data['specialites'] as List<dynamic>?)?.join(', ') ?? '';
+          _bioController.text = data['description_bio'] ?? '';
+          _isActif = data['actif'] ?? false; // Default to false if not set
+          // L'URL complète est directement stockée
+          _existingPublicUrl = data['photo_url'];
         });
 
         await _fetchSchedules();
@@ -101,11 +96,11 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
   Future<void> _fetchSchedules() async {
     // No need for separate loading state, it's part of the initial load
     try {
-      final response = await _supabase
-          .from('coiffeur_work_schedules')
-          .select()
-          .eq('coiffeur_user_id', widget.userId);
-
+      final scheduleSnapshot = await _firestore
+          .collection('coiffeur_work_schedules')
+          .where('coiffeur_user_id', isEqualTo: widget.userId)
+          .get();
+      final response = scheduleSnapshot.docs.map((doc) => doc.data()..['id'] = doc.id).toList();
       // Clear existing schedules before populating
       _schedules.forEach((key, value) => value.clear());
 
@@ -145,32 +140,35 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
           .where((s) => s.isNotEmpty)
           .toList();
 
-      String? finalPhotoPath = _existingPhotoPath;
+      String? finalPhotoUrl = _existingPublicUrl;
 
       // Si une nouvelle photo a été sélectionnée, la téléverser
       if (_selectedPhotoFile != null) {
-        final fileExtension = _selectedPhotoFile!.path.split('.').last;
-        final uploadPath = 'public/${widget.userId}.$fileExtension';
+        // D'abord, supprimer l'ancienne photo si elle existe
+        if (_existingPublicUrl != null && _existingPublicUrl!.isNotEmpty) {
+          try {
+            await _storage.refFromURL(_existingPublicUrl!).delete();
+          } catch (e) {
+            print("Avertissement: L'ancienne photo n'a pas pu être supprimée: $e");
+          }
+        }
 
-        await _supabase.storage.from('photos.coiffeurs').upload(
-              uploadPath,
-              _selectedPhotoFile!,
-              fileOptions:
-                  const FileOptions(cacheControl: '3600', upsert: true),
-            );
-        finalPhotoPath = uploadPath;
+        // Ensuite, uploader la nouvelle
+        final fileExtension = _selectedPhotoFile!.path.split('.').last;
+        final fileName = '${const Uuid().v4()}.$fileExtension';
+        final ref = _storage.ref().child('coiffeur_photos/$fileName');
+        await ref.putFile(_selectedPhotoFile!);
+        finalPhotoUrl = await ref.getDownloadURL();
       }
 
-      // Utiliser upsert() au lieu de insert() pour gérer les cas où le coiffeur
-      // existe déjà. Cela mettra à jour l'enregistrement existant ou en créera un nouveau.
-      // C'est plus robuste et évite les erreurs de "duplicate key".
-      await _supabase.from('coiffeurs').upsert({
-        'user_id': widget.userId,
+      // Mettre à jour le document de l'utilisateur dans la collection 'users'
+      await _firestore.collection('users').doc(widget.userId).set({
         'specialites': specialitesList,
         'description_bio': _bioController.text.trim(),
-        'photo_url': finalPhotoPath,
+        'photo_url': finalPhotoUrl,
         'actif': _isActif,
-      });
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)); // Utiliser merge:true pour ne pas écraser les autres champs
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -231,24 +229,21 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
         '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}:00';
 
     try {
-      // On insère les données et on utilise .select() pour récupérer la ligne créée
-      final newScheduleData = await _supabase
-          .from('coiffeur_work_schedules')
-          .insert({
+      // On ajoute les données et on récupère la référence du document créé
+      final newScheduleRef = await _firestore
+          .collection('coiffeur_work_schedules')
+          .add({
             'coiffeur_user_id': widget.userId,
             'day_of_week': dayOfWeek,
             'start_time': startTimeStr,
             'end_time': endTimeStr,
-          })
-          .select()
-          .single();
+            'created_at': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
-        // On met à jour l'état local directement, sans avoir besoin de tout recharger.
-        // C'est plus efficace et évite les bugs graphiques de re-rendu.
         setState(() {
           _schedules[dayOfWeek]?.add(ScheduleEntry(
-            id: newScheduleData['id'] as String,
+            id: newScheduleRef.id,
             startTime: startTime,
             endTime: endTime,
           ));
@@ -267,11 +262,10 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
 
   Future<void> _deleteSchedule(String scheduleId, int dayOfWeek) async {
     try {
-      await _supabase
-          .from('coiffeur_work_schedules')
-          .delete()
-          .eq('id', scheduleId);
-
+      await _firestore
+          .collection('coiffeur_work_schedules')
+          .doc(scheduleId)
+          .delete();
       if (mounted) {
         // On met à jour l'état local directement.
         setState(() {

@@ -1,7 +1,8 @@
 import 'dart:io'; // Importer dart:io pour File
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:soifapp/widgets/logout_button.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart'; // Importer image_picker
 import 'package:uuid/uuid.dart'; // Importer le package uuid
 
@@ -17,7 +18,7 @@ class AddHaircutServicePage extends StatefulWidget {
 }
 
 class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // State partagé entre les onglets
   Map<String, List<String>> _subCategoriesByCategory = {};
@@ -44,15 +45,16 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
     });
     try {
       // Récupérer à la fois la catégorie et la sous-catégorie
-      final response = await _supabase
-          .from('haircut_services')
-          .select('category, sub_category');
+      final servicesSnapshot = await _firestore
+          .collection('haircut_services')
+          .get();
 
       if (!mounted) return;
 
       // Utiliser une map pour grouper les sous-catégories par catégorie
       final Map<String, Set<String>> subCategoriesMap = {};
-      for (var item in response) {
+      for (var doc in servicesSnapshot.docs) {
+        final item = doc.data();
         final category = item['category'] as String?;
         final subCategory = item['sub_category'] as String?;
         if (category != null &&
@@ -166,7 +168,8 @@ class _AddServiceViewState extends State<_AddServiceView> {
   final ImagePicker _picker = ImagePicker();
 
   bool _isLoading = false;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final Uuid _uuid = const Uuid();
 
   @override
@@ -191,26 +194,24 @@ class _AddServiceViewState extends State<_AddServiceView> {
 
     setState(() => _isLoading = true);
 
-    String? serviceImagePathForDb;
+    String? serviceImageUrlForDb;
     final String serviceId = _idController.text.trim();
 
     try {
       // Étape 1: Récupérer l'image de la sous-catégorie depuis le service "placeholder"
-      // pour la copier sur le nouveau service réel.
-      String? subCategoryImagePath;
+      String? subCategoryImageUrl;
       try {
-        final placeholderResponse = await _supabase
-            .from('haircut_services')
-            .select('image_placeholder_sous_category')
-            .match({
-          'sub_category': _selectedSubCategory!,
-          'name': '[SOUS-CATÉGORIE] $_selectedSubCategory',
-          'category': _selectedCategory!
-        }).maybeSingle(); // Utiliser maybeSingle pour ne pas avoir d'erreur si non trouvé
+        final placeholderQuery = await _firestore
+            .collection('haircut_services')
+            .where('sub_category', isEqualTo: _selectedSubCategory!)
+            .where('name', isEqualTo: '[SOUS-CATÉGORIE] $_selectedSubCategory')
+            .where('category', isEqualTo: _selectedCategory!)
+            .limit(1)
+            .get();
 
-        if (placeholderResponse != null) {
-          subCategoryImagePath =
-              placeholderResponse['image_placeholder_sous_category'] as String?;
+        if (placeholderQuery.docs.isNotEmpty) {
+          subCategoryImageUrl = placeholderQuery.docs.first
+              .data()['image_placeholder_sous_category'] as String?;
         }
       } catch (e) {
         print("Info: n'a pas trouvé d'image pour la sous-catégorie: $e");
@@ -220,36 +221,40 @@ class _AddServiceViewState extends State<_AddServiceView> {
       if (_selectedServiceImageFile != null) {
         final String fileExtension =
             _selectedServiceImageFile!.path.split('.').last.toLowerCase();
-        final String fileName = '$serviceId-service.$fileExtension';
-        serviceImagePathForDb = 'public/$fileName';
-        await _supabase.storage
-            .from('service.images')
-            .upload(serviceImagePathForDb, _selectedServiceImageFile!);
+        final String fileName = '${const Uuid().v4()}.$fileExtension';
+        final ref = _storage.ref().child('service_images/$fileName');
+        await ref.putFile(_selectedServiceImageFile!);
+        serviceImageUrlForDb = await ref.getDownloadURL();
       }
 
       final serviceData = {
-        'id': serviceId,
         'name': _nameController.text.trim(),
         'duration_minutes': int.parse(_durationController.text.trim()),
         'price': double.parse(_priceController.text.trim()),
         'sub_category': _selectedSubCategory!,
         'category': _selectedCategory!,
-        'image_placeholder': serviceImagePathForDb,
-        // Étape 2: On copie le chemin de l'image de la sous-catégorie sur ce nouveau service.
-        'image_placeholder_sous_category': subCategoryImagePath,
+        'image_placeholder': serviceImageUrlForDb,
+        'image_placeholder_sous_category': subCategoryImageUrl,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
       };
 
-      await _supabase.from('haircut_services').insert(serviceData);
+      await _firestore.collection('haircut_services').doc(serviceId).set(serviceData);
 
-      // Étape 3: On supprime le service "placeholder" maintenant qu'un vrai service existe
-      // et porte l'information de l'image de la sous-catégorie.
+      // Étape 3: On supprime le service "placeholder"
       // On ne traite pas l'erreur, car il est possible qu'il ait déjà été supprimé.
       try {
-        await _supabase.from('haircut_services').delete().match({
-          'sub_category': _selectedSubCategory!,
-          'name': '[SOUS-CATÉGORIE] $_selectedSubCategory',
-          'category': _selectedCategory!
-        });
+        final placeholderQuery = await _firestore
+            .collection('haircut_services')
+            .where('sub_category', isEqualTo: _selectedSubCategory!)
+            .where('name', isEqualTo: '[SOUS-CATÉGORIE] $_selectedSubCategory')
+            .where('category', isEqualTo: _selectedCategory!)
+            .limit(1)
+            .get();
+
+        if (placeholderQuery.docs.isNotEmpty) {
+          await placeholderQuery.docs.first.reference.delete();
+        }
       } catch (e) {
         // Log pour le débogage, mais pas d'erreur montrée à l'utilisateur.
         print(
@@ -478,7 +483,8 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
   File? _selectedSubCategoryImageFile;
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final Uuid _uuid = const Uuid();
 
   // Ajout pour la sélection de la catégorie parente
@@ -514,28 +520,30 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
       // 1. Upload de l'image de la sous-catégorie
       final String fileExtension =
           _selectedSubCategoryImageFile!.path.split('.').last.toLowerCase();
-      final sanitizedName =
-          newName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '-').toLowerCase();
-      final String fileName = '$sanitizedName-subcategory.$fileExtension';
-      final String subCategoryImagePathForDb = 'public/$fileName';
-
-      await _supabase.storage
-          .from('sub.category.images')
-          .upload(subCategoryImagePathForDb, _selectedSubCategoryImageFile!);
+      final String fileName = '${const Uuid().v4()}.$fileExtension';
+      final ref = _storage.ref().child('sub_category_images/$fileName');
+      await ref.putFile(_selectedSubCategoryImageFile!);
+      final subCategoryImageUrlForDb = await ref.getDownloadURL();
 
       // 2. Création d'un service "placeholder" pour stocker la sous-catégorie
-      // C'est une solution de contournement due à la structure de la BDD actuelle.
+      final String placeholderId = _uuid.v4();
       final placeholderServiceData = {
-        'id': _uuid.v4(),
         'name': '[SOUS-CATÉGORIE] $newName',
         'duration_minutes': 0,
         'price': 0.0,
         'sub_category': newName,
         'category': _selectedCategoryForSubCategory!,
-        'image_placeholder_sous_category': subCategoryImagePathForDb,
+        'image_placeholder_sous_category': subCategoryImageUrlForDb,
+        'image_placeholder':
+            null, // Le placeholder n'a pas d'image de service propre
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
       };
 
-      await _supabase.from('haircut_services').insert(placeholderServiceData);
+      await _firestore
+          .collection('haircut_services')
+          .doc(placeholderId)
+          .set(placeholderServiceData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "805489089422",
+    "project_id": "coiffure-salon",
+    "storage_bucket": "coiffure-salon.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:805489089422:android:892f895414ba0fba33e2df",
+        "android_client_info": {
+          "package_name": "com.example.soifapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAha8SV2bHtXTMlspg4Jbryb8DcyaBcty0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

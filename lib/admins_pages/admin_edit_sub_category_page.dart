@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:soifapp/models/haircut_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 /// Page de sélection de la sous-catégorie à modifier.
 class AdminEditSubCategoryPage extends StatefulWidget {
@@ -14,7 +16,7 @@ class AdminEditSubCategoryPage extends StatefulWidget {
 }
 
 class _AdminEditSubCategoryPageState extends State<AdminEditSubCategoryPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<HaircutService> _services = []; // Pour en déduire les sous-catégories
   bool _isLoading = true;
   String? _errorMessage;
@@ -41,12 +43,15 @@ class _AdminEditSubCategoryPageState extends State<AdminEditSubCategoryPage> {
       _errorMessage = null;
     });
     try {
-      final data =
-          await _supabase.from('haircut_services').select().order('name');
+      final servicesSnapshot = await _firestore
+          .collection('haircut_services')
+          .orderBy('name')
+          .get();
       if (mounted) {
         setState(() {
-          _services =
-              data.map((item) => HaircutService.fromSupabase(item)).toList();
+          _services = servicesSnapshot.docs
+              .map((doc) => HaircutService.fromFirestore(doc))
+              .toList();
           _isLoading = false;
         });
       }
@@ -112,10 +117,7 @@ class _AdminEditSubCategoryPageState extends State<AdminEditSubCategoryPage> {
     Widget imageWidget;
 
     if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      try {
-        final imageUrl = _supabase.storage
-            .from('sub.category.images')
-            .getPublicUrl(subCategoryImagePath);
+      final imageUrl = subCategoryImagePath;
         imageWidget = Image.network(
           imageUrl,
           fit: BoxFit.cover,
@@ -132,13 +134,6 @@ class _AdminEditSubCategoryPageState extends State<AdminEditSubCategoryPage> {
                 child: Icon(icon, color: color, size: 50));
           },
         );
-      } catch (e) {
-        final icon = _getDynamicIconForSubCategory(subCategoryName);
-        final color = _getDynamicColorForSubCategory(subCategoryName, context);
-        imageWidget = Container(
-            color: color.withOpacity(0.15),
-            child: Icon(icon, color: color, size: 50));
-      }
     } else {
       final icon = _getDynamicIconForSubCategory(subCategoryName);
       final color = _getDynamicColorForSubCategory(subCategoryName, context);
@@ -299,6 +294,9 @@ class _AdminEditSubCategoryPageState extends State<AdminEditSubCategoryPage> {
                                 case ServiceCategory.mixte:
                                   text = 'Mixte';
                                   break;
+                                case ServiceCategory.undefined:
+                                  text = 'Autre';
+                                  break;
                               }
                               return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -336,7 +334,8 @@ class _EditSubCategoryFormPageState extends State<_EditSubCategoryFormPage> {
   late TextEditingController _nameController;
   File? _selectedImageFile;
   bool _isLoading = false;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -369,60 +368,62 @@ class _EditSubCategoryFormPageState extends State<_EditSubCategoryFormPage> {
     final bool imageChanged = _selectedImageFile != null;
 
     try {
-      String? newImagePath;
+      String? newImageUrl;
       if (imageChanged) {
-        final sanitizedName =
-            newName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '-').toLowerCase();
+        // Uploader la nouvelle image
         final fileExtension =
             _selectedImageFile!.path.split('.').last.toLowerCase();
-        final String fileName = '$sanitizedName-subcategory.$fileExtension';
-        newImagePath = 'public/$fileName';
+        final String fileName = '${const Uuid().v4()}.$fileExtension';
+        final Reference storageRef =
+            _storage.ref().child('sub_category_images/$fileName');
 
-        await _supabase.storage.from('sub.category.images').upload(
-            newImagePath, _selectedImageFile!,
-            fileOptions: const FileOptions(upsert: true));
+        final UploadTask uploadTask = storageRef.putFile(_selectedImageFile!);
+        final TaskSnapshot snapshot = await uploadTask;
+        newImageUrl = await snapshot.ref.getDownloadURL();
       }
 
-      final updates = <String, dynamic>{};
-      if (nameChanged) {
-        updates['sub_category'] = newName;
-      }
-      if (imageChanged && newImagePath != null) {
-        updates['image_placeholder_sous_category'] = newImagePath;
+      // Préparer les données à mettre à jour
+      final dataToUpdate = <String, dynamic>{
+        'updated_at': FieldValue.serverTimestamp()
+      };
+      if (nameChanged) dataToUpdate['sub_category'] = newName;
+      if (imageChanged && newImageUrl != null) {
+        dataToUpdate['image_placeholder_sous_category'] = newImageUrl;
       }
 
-      if (updates.isNotEmpty) {
-        // Mettre à jour tous les services réels de cette catégorie
-        await _supabase
-            .from('haircut_services')
-            .update(updates)
-            .eq('sub_category', widget.initialName);
+      // Si des modifications sont nécessaires, les appliquer en lot
+      if (dataToUpdate.length > 1) {
+        // 1. Trouver tous les services concernés
+        final servicesToUpdateSnapshot = await _firestore
+            .collection('haircut_services')
+            .where('sub_category', isEqualTo: widget.initialName)
+            .get();
 
-        // Mettre à jour le service placeholder s'il existe
-        if (nameChanged) {
-          final placeholderUpdates = {
-            'name': '[SOUS-CATÉGORIE] $newName',
-            ...updates
-          };
-          await _supabase
-              .from('haircut_services')
-              .update(placeholderUpdates)
-              .eq('name', '[SOUS-CATÉGORIE] ${widget.initialName}');
+        // 2. Créer un batch pour les mises à jour atomiques
+        final batch = _firestore.batch();
+        for (final doc in servicesToUpdateSnapshot.docs) {
+          batch.update(doc.reference, dataToUpdate);
         }
+
+        // 3. Exécuter le batch
+        await batch.commit();
       }
 
-      // Supprimer l'ancienne image du storage si une nouvelle a été uploadée
+      // 4. Supprimer l'ancienne image du storage si une nouvelle a été uploadée
       if (imageChanged &&
           widget.initialImagePath != null &&
           widget.initialImagePath!.isNotEmpty) {
-        await _supabase.storage
-            .from('sub.category.images')
-            .remove([widget.initialImagePath!]);
+        try {
+          await _storage.refFromURL(widget.initialImagePath!).delete();
+        } catch (e) {
+          print(
+              "Avertissement: L'ancienne image de sous-catégorie n'a pas pu être supprimée: $e");
+        }
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Catégorie mise à jour avec succès !'),
+          content: Text('Sous-catégorie mise à jour avec succès !'),
           backgroundColor: Colors.green,
         ));
         Navigator.pop(context, true);

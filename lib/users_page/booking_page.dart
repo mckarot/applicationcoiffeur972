@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:soifapp/models/haircut_service.dart';
 import 'package:soifapp/users_page/coiffeur_details_page.dart';
 import 'package:soifapp/users_page/planning_page.dart';
@@ -8,7 +11,6 @@ import 'package:soifapp/users_page/select_service_page.dart';
 import 'package:soifapp/users_page/settings_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'widgets/date_selector.dart';
@@ -61,40 +63,23 @@ class Coiffeur {
     this.photoUrl, // N'oublie pas de l'ajouter ici
   });
 
-  factory Coiffeur.fromSupabase({
-    required Map<String, dynamic> coiffeurData,
-    required String profileName,
-    required SupabaseClient supabaseClient,
-  }) {
-    String userId = coiffeurData['user_id'] as String;
-    String? photoPath = coiffeurData['photo_url'] as String?;
-    String? trimmedPhotoPath =
-        photoPath?.trim(); // Nettoyer les espaces et sauts de ligne
-
-    String? publicPhotoUrl;
-    if (trimmedPhotoPath != null && trimmedPhotoPath.isNotEmpty) {
-      try {
-        publicPhotoUrl = supabaseClient.storage
-            .from('photos.coiffeurs')
-            .getPublicUrl(trimmedPhotoPath); // Utiliser le chemin nettoyé
-      } catch (e) {
-        print(
-            'Erreur lors de la récupération de l\'URL publique pour $trimmedPhotoPath: $e');
-        publicPhotoUrl = null;
-      }
-    }
-    // ... rest of your factory
+  // Nouvelle factory pour Firestore
+  factory Coiffeur.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final userId = doc.id;
 
     return Coiffeur(
       id: userId,
-      name: profileName,
+      name: data['nom'] ??
+          'Coiffeur inconnu', // 'nom' est directement dans le document utilisateur
       icon: _getDynamicIconForCoiffeur(userId),
       color: _getDynamicColorForCoiffeur(userId),
-      specialites: coiffeurData['specialites'] != null
-          ? List<String>.from(coiffeurData['specialites'])
+      specialites: data['specialites'] != null
+          ? List<String>.from(data['specialites'])
           : null,
-      descriptionBio: coiffeurData['description_bio'] as String?,
-      photoUrl: publicPhotoUrl, // Assigne l'URL publique ici
+      descriptionBio: data['description_bio'] as String?,
+      photoUrl: data['photo_url']
+          as String?, // L'URL complète est stockée directement
     );
   }
 }
@@ -112,7 +97,8 @@ class _BookingPageState extends State<BookingPage> {
   String? _selectedCoiffeurId; // Stockera l'ID du coiffeur sélectionné
   String? _selectedCreneau;
 
-  final SupabaseClient _supabaseClient = Supabase.instance.client;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<Coiffeur> _coiffeurs = []; // Sera rempli depuis Supabase
   bool _isLoadingCoiffeurs = false;
   String? _coiffeursError;
@@ -165,59 +151,15 @@ class _BookingPageState extends State<BookingPage> {
     });
 
     try {
-      final List<Map<String, dynamic>> activeCoiffeursData =
-          await _supabaseClient
-              .from('coiffeurs')
-              .select(
-                  'user_id, specialites, description_bio, photo_url') // <-- AJOUTE 'photo_url' ICI
-              .eq('actif', true);
+      final coiffeursSnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'coiffeur')
+          .where('actif', isEqualTo: true)
+          .get();
 
-      if (activeCoiffeursData.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _coiffeurs = [];
-            _isLoadingCoiffeurs = false;
-          });
-        }
-        return;
-      }
-
-      final List<String> userIds =
-          activeCoiffeursData.map((c) => c['user_id'] as String).toList();
-
-      if (userIds.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _coiffeurs = [];
-            _isLoadingCoiffeurs = false;
-          });
-        }
-        return;
-      }
-
-      final List<Map<String, dynamic>> profilesData = await _supabaseClient
-          .from('profiles')
-          .select('id, nom')
-          .filter('id', 'in', userIds);
-
-      final List<Coiffeur> fetchedCoiffeurs = [];
-      for (var coiffeurRecord in activeCoiffeursData) {
-        final profileRecord = profilesData.firstWhere(
-          (p) => p['id'] == coiffeurRecord['user_id'],
-          orElse: () => <String, dynamic>{},
-        );
-
-        if (profileRecord.isNotEmpty && profileRecord['nom'] != null) {
-          fetchedCoiffeurs.add(Coiffeur.fromSupabase(
-            coiffeurData: coiffeurRecord,
-            profileName: profileRecord['nom'] as String,
-            supabaseClient: _supabaseClient, // <-- PASSE LE CLIENT SUPABASE ICI
-          ));
-        } else {
-          print(
-              'Avertissement: Coiffeur ID ${coiffeurRecord['user_id']} actif mais profil ou nom manquant.');
-        }
-      }
+      final List<Coiffeur> fetchedCoiffeurs = coiffeursSnapshot.docs
+          .map((doc) => Coiffeur.fromFirestore(doc))
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -225,9 +167,9 @@ class _BookingPageState extends State<BookingPage> {
           _isLoadingCoiffeurs = false;
         });
       }
-    } catch (e) {
+    } catch (e, stacktrace) {
       if (mounted) {
-        print('Erreur lors de la récupération des coiffeurs: $e');
+        print('Erreur lors de la récupération des coiffeurs: $e\n$stacktrace');
         setState(() {
           _coiffeursError = 'Impossible de charger les coiffeurs.';
           _isLoadingCoiffeurs = false;
@@ -247,13 +189,13 @@ class _BookingPageState extends State<BookingPage> {
     });
 
     try {
-      final List<Map<String, dynamic>> servicesData =
-          await _supabaseClient.from('haircut_services').select();
+      final servicesSnapshot =
+          await _firestore.collection('haircut_services').get();
 
       if (mounted) {
         setState(() {
-          _allServices = servicesData
-              .map((data) => HaircutService.fromSupabase(data))
+          _allServices = servicesSnapshot.docs
+              .map((doc) => HaircutService.fromFirestore(doc))
               .toList();
           _isLoadingServices = false;
         });
@@ -301,6 +243,10 @@ class _BookingPageState extends State<BookingPage> {
       final selectedDate = _selectedDate!;
       final serviceDuration = _selectedService!.duration;
 
+      print("--- Début du calcul des créneaux pour le ${selectedDate.toLocal().toString()} ---");
+      print("Coiffeur: $coiffeurId, Service: ${_selectedService!.name} (durée: ${serviceDuration.inMinutes} min)");
+
+
       final tz.TZDateTime nowInSalon = tz.TZDateTime.now(_salonLocation!);
       final bool isToday = tz.TZDateTime(_salonLocation!, selectedDate.year,
               selectedDate.month, selectedDate.day)
@@ -314,35 +260,40 @@ class _BookingPageState extends State<BookingPage> {
           .subtract(const Duration(milliseconds: 1));
 
       final selectedDayOfWeek = selectedDate.weekday;
-      final workSchedulesResponse = await _supabaseClient
-          .from('coiffeur_work_schedules')
-          .select('start_time, end_time')
-          .eq('coiffeur_user_id', coiffeurId)
-          .eq('day_of_week', selectedDayOfWeek)
-          .order('start_time', ascending: true);
+      final workSchedulesSnapshot = await _firestore
+ .collection('coiffeur_work_schedules')
+          .where('coiffeur_user_id', isEqualTo: coiffeurId)
+          .where('day_of_week', isEqualTo: selectedDayOfWeek)
+          .orderBy('start_time')
+          .get();
       final List<Map<String, dynamic>> workSchedulesData =
-          List<Map<String, dynamic>>.from(workSchedulesResponse);
+          workSchedulesSnapshot.docs.map((d) => d.data()).toList();
+      print("Horaires de travail trouvés ($selectedDayOfWeek): $workSchedulesData");
 
-      final appointmentsResponse = await _supabaseClient
-          .from('appointments')
-          .select('start_time, end_time')
-          .eq('coiffeur_user_id', coiffeurId)
-          .lt('start_time', dayEndUtc.toIso8601String())
-          .gt('end_time', dayStartUtc.toIso8601String());
-      final List<Map<String, dynamic>> appointmentsData =
-          List<Map<String, dynamic>>.from(appointmentsResponse);
+      final appointmentsSnapshot = await _firestore.collection('appointments')
+          .where('coiffeur_user_id', isEqualTo: coiffeurId)
+          .where('start_time', isLessThan: dayEndUtc)
+          .get();
+      final List<Map<String, dynamic>> appointmentsData = appointmentsSnapshot.docs
+          .where((doc) => (doc.data()['status'] ?? 'confirmed') != 'cancelled_by_client') // Ignorer les RDV annulés
+          .map((doc) => doc.data())
+          .where((rdv) {
+        final rdvEnd = (rdv['end_time'] as Timestamp).toDate();
+        return rdvEnd.isAfter(dayStartUtc);
+      }).toList();
+      print("Rendez-vous existants qui chevauchent la journée: $appointmentsData");
 
-      final absencesResponse = await _supabaseClient
-          .from('coiffeur_absences')
-          .select('start_time, end_time')
-          .eq('coiffeur_user_id', coiffeurId)
-          .lt('start_time', dayEndUtc.toIso8601String())
-          .gt('end_time', dayStartUtc.toIso8601String());
+
+      final absencesSnapshot = await _firestore.collection('coiffeur_absences')
+          .where('coiffeur_user_id', isEqualTo: coiffeurId)
+          .where('start_time', isLessThan: dayEndUtc)
+          .get();
       final List<Map<String, dynamic>> absencesData =
-          List<Map<String, dynamic>>.from(absencesResponse);
-
-      print(
-          "Absences pour $coiffeurId le ${selectedDate.toLocal()}: $absencesData");
+          absencesSnapshot.docs.map((doc) => doc.data()).where((absence) {
+        final absenceEnd = (absence['end_time'] as Timestamp).toDate();
+        return absenceEnd.isAfter(dayStartUtc);
+      }).toList();
+      print("Absences qui chevauchent la journée: $absencesData");
 
       final List<String> calculatedSlots = [];
       final DateFormat timeFormatter = DateFormat.Hm('fr_FR');
@@ -387,10 +338,10 @@ class _BookingPageState extends State<BookingPage> {
 
           final bool isBooked = appointmentsData.any((appointment) {
             final rdvStart = tz.TZDateTime.from(
-                DateTime.parse(appointment['start_time'] as String),
+                (appointment['start_time'] as Timestamp).toDate(),
                 _salonLocation!);
             final rdvEnd = tz.TZDateTime.from(
-                DateTime.parse(appointment['end_time'] as String),
+                (appointment['end_time'] as Timestamp).toDate(),
                 _salonLocation!);
             return potentialSlotStart.isBefore(rdvEnd) &&
                 potentialSlotEnd.isAfter(rdvStart);
@@ -398,10 +349,10 @@ class _BookingPageState extends State<BookingPage> {
 
           final bool isAbsent = absencesData.any((absence) {
             final absenceStart = tz.TZDateTime.from(
-                DateTime.parse(absence['start_time'] as String),
+                (absence['start_time'] as Timestamp).toDate(),
                 _salonLocation!);
             final absenceEnd = tz.TZDateTime.from(
-                DateTime.parse(absence['end_time'] as String), _salonLocation!);
+                (absence['end_time'] as Timestamp).toDate(), _salonLocation!);
             return potentialSlotStart.isBefore(absenceEnd) &&
                 potentialSlotEnd.isAfter(absenceStart);
           });
@@ -422,6 +373,7 @@ class _BookingPageState extends State<BookingPage> {
         setState(() {
           _dynamicAvailableSlots = calculatedSlots.toSet().toList()..sort();
           _isLoadingSlots = false;
+          print("Créneaux finaux trouvés: $_dynamicAvailableSlots");
         });
       }
     } catch (e, stacktrace) {
@@ -550,14 +502,10 @@ class _BookingPageState extends State<BookingPage> {
                             coiffeur.photoUrl!.isNotEmpty
                         ? CircleAvatar(
                             radius: 35,
-                            backgroundImage: NetworkImage(coiffeur.photoUrl!),
+                            backgroundImage:
+                                CachedNetworkImageProvider(coiffeur.photoUrl!),
                             backgroundColor:
                                 Colors.grey[200], // Placeholder couleur
-                            onBackgroundImageError: (exception, stackTrace) {
-                              // Gérer les erreurs de chargement d'image
-                              print(
-                                  'Erreur de chargement d\'image pour ${coiffeur.name}: $exception');
-                            },
                           )
                         : CircleAvatar(
                             radius: 35,
@@ -795,7 +743,7 @@ class _BookingPageState extends State<BookingPage> {
     });
 
     try {
-      final currentUser = _supabaseClient.auth.currentUser;
+      final currentUser = _auth.currentUser;
       if (currentUser == null) {
         throw Exception("Utilisateur non connecté.");
       }
@@ -818,19 +766,32 @@ class _BookingPageState extends State<BookingPage> {
       final utcStartTime = salonStartTime.toUtc();
       final utcEndTime = salonStartTime.add(_selectedService!.duration).toUtc();
 
-      await _supabaseClient.from('appointments').insert({
-        'client_user_id': currentUser.id,
+      // Récupérer le nom du client et du coiffeur
+      final clientDoc =
+          await _firestore.collection('users').doc(currentUser.uid).get();
+      final clientName = clientDoc.data()?['nom'] as String? ?? 'Client inconnu';
+
+      // Récupérer le nom du coiffeur sélectionné
+      final coiffeurName = _coiffeurs
+          .firstWhere((c) => c.id == _selectedCoiffeurId,
+              orElse: () => Coiffeur(id: '', name: 'Inconnu', icon: Icons.error, color: Colors.red))
+          .name;
+
+      await _firestore.collection('appointments').add({
+        'client_user_id': currentUser.uid,
+        'client_name': clientName, // Ajout du nom du client
         'coiffeur_user_id': _selectedCoiffeurId,
+        'coiffeur_name': coiffeurName, // Ajout du nom du coiffeur
         'service_id': _selectedService!.id,
-        'start_time':
-            utcStartTime.toIso8601String(), // Envoie une chaîne UTC (ex: ...Z)
-        'end_time':
-            utcEndTime.toIso8601String(), // Envoie une chaîne UTC (ex: ...Z)
+        'start_time': Timestamp.fromDate(utcStartTime),
+        'end_time': Timestamp.fromDate(utcEndTime),
         'duration_minutes': _selectedService!.duration.inMinutes,
         'service_name': _selectedService!.name,
         'price_at_booking': _selectedService!.price,
-        'status': 'confirmed', // Statut initial
-        // 'notes': null, // Ajoutez un champ pour les notes si nécessaire
+        'status': 'confirmed',
+        'notes': null,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
       });
 
       if (mounted) {

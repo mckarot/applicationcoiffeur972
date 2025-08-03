@@ -3,9 +3,10 @@ import 'package:intl/date_symbol_data_local.dart'; // Import pour l'initialisati
 import 'package:flutter_localizations/flutter_localizations.dart'; // Import pour les delegates
 import 'package:provider/provider.dart';
 // Importez la nouvelle page
+import 'package:soifapp/firebase_options.dart';
 import 'package:soifapp/models/theme_provider.dart';
 import 'package:soifapp/welcome_page.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Importer Supabase
+import 'package:firebase_core/firebase_core.dart'; // Importer Firebase
 import 'package:timezone/data/latest.dart' as tz; // Import pour timezone
 
 void main() async {
@@ -13,12 +14,10 @@ void main() async {
   WidgetsFlutterBinding
       .ensureInitialized(); // Nécessaire si vous initialisez des choses avant runApp
 
-  // Initialisation de Supabase
-  await Supabase.initialize(
-    url:
-        'https://dxmnthkrdtlgdepujtmh.supabase.co', // Remplacez par votre URL Supabase
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4bW50aGtyZHRsZ2RlcHVqdG1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NDk1MzIsImV4cCI6MjA2NTMyNTUzMn0.g2H3BamnTq2mGDcTwzYtU0yYAKFccWfaqmZFBEcKARg', // Remplacez par votre clé Anon Supabase
+  // Initialisation de Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions
+        .currentPlatform, // Utilise le fichier firebase_options.dart
   );
 
   // Initialisation des données de fuseau horaire pour le package timezone

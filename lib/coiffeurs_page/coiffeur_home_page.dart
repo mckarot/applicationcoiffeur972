@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soifapp/appointments_timeline.dart';
 import 'package:soifapp/users_page/planning_page.dart'; // Pour la classe Appointment
-import 'package:soifapp/widgets/logout_button.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:soifapp/widgets/logout_button.dart'; // Pour la classe Appointment
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/timezone.dart' as tz; // Importer le package timezone
 
 class CoiffeurHomePage extends StatefulWidget {
   final String? coiffeurUserIdFromAdmin;
@@ -22,7 +23,8 @@ class CoiffeurHomePage extends StatefulWidget {
 }
 
 class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _coiffeurName;
   String? _coiffeurId;
   bool _isLoading = true;
@@ -39,9 +41,6 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    // Set the default timezone for Martinique (America/Martinique)
-    // Make sure to load the timezone data first if not already done globally in your app.
-    tz.setLocalLocation(tz.getLocation('America/Martinique'));
     _initializeAndLoadData();
   }
 
@@ -72,7 +71,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
       _coiffeurName = widget.coiffeurNameFromAdmin ??
           'Coiffeur'; // Utiliser le nom fourni ou un défaut
     } else {
-      final currentUser = _supabase.auth.currentUser;
+      final currentUser = _auth.currentUser;
       if (currentUser == null) {
         if (mounted) {
           setState(() {
@@ -82,50 +81,47 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
         }
         return;
       }
-      _coiffeurId = currentUser.id;
+      _coiffeurId = currentUser.uid;
     }
 
     try {
       // Récupérer le nom du coiffeur seulement si non fourni par l'admin
       if (widget.coiffeurUserIdFromAdmin == null ||
           widget.coiffeurNameFromAdmin == null) {
-        final profileResponse = await _supabase
-            .from('profiles')
-            .select('nom')
-            .eq('id', _coiffeurId!)
-            .single();
-        _coiffeurName =
-            profileResponse['nom'] as String? ?? _coiffeurName ?? 'Coiffeur';
+        final userDoc =
+            await _firestore.collection('users').doc(_coiffeurId!).get();
+        if (userDoc.exists) {
+          _coiffeurName = userDoc.data()?['nom'] as String? ?? 'Coiffeur';
+        } else {
+          _coiffeurName = 'Coiffeur Inconnu';
+        }
       }
       // Si widget.coiffeurNameFromAdmin est fourni, _coiffeurName est déjà initialisé.
 
       // Récupérer les rendez-vous du coiffeur
-      final appointmentsResponse = await _supabase
-          .from('appointments')
-          .select(
-              '*, client_profile:profiles!appointments_client_user_id_fkey(nom)')
-          .eq('coiffeur_user_id', _coiffeurId!)
-          .order('start_time', ascending: true);
+      final appointmentsSnapshot = await _firestore
+          .collection('appointments')
+          .where('coiffeur_user_id', isEqualTo: _coiffeurId!)
+          // Afficher les RDV confirmés et complétés
+          .where('status', whereIn: ['confirmed', 'completed'])
+          .orderBy('start_time')
+          .get();
 
       final List<Appointment> loadedAppointments = [];
-      for (var item in appointmentsResponse) {
-        final clientName = (item['client_profile'] != null &&
-                (item['client_profile'] as Map).containsKey('nom'))
-            ? item['client_profile']['nom'] as String? ?? 'Client inconnu'
-            : 'Client inconnu';
-        final serviceName =
-            item['service_name'] as String? ?? 'Service inconnu';
+      for (var doc in appointmentsSnapshot.docs) {
+        final data = doc.data();
+        final clientName = data['client_name'] as String? ?? 'Client inconnu';
+        final serviceName = data['service_name'] as String? ?? 'Service inconnu';
 
         loadedAppointments.add(
           Appointment(
-            id: item['id'] as String, // ID is a UUID string
+            id: doc.id,
             title: 'RDV $clientName - $serviceName',
-            serviceName: serviceName,
             coiffeurName: _coiffeurName!,
             startTime: tz.TZDateTime.from(
-                DateTime.parse(item['start_time'] as String), _salonLocation!),
+                (data['start_time'] as Timestamp).toDate(), _salonLocation!),
             duration: Duration(
-                minutes: int.parse(item['duration_minutes'].toString())),
+                minutes: data['duration_minutes'] as int? ?? 0),
           ),
         );
       }
@@ -178,14 +174,18 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
     }
   }
 
-  Future<void> _deleteAppointment(String appointmentId) async {
+  // Annulation par le coiffeur
+  Future<void> _cancelAppointment(String appointmentId) async {
     try {
-      await _supabase.from('appointments').delete().eq('id', appointmentId);
+      await _firestore.collection('appointments').doc(appointmentId).update({
+        'status': 'cancelled_by_coiffeur',
+        'updated_at': FieldValue.serverTimestamp(),
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Rendez-vous supprimé avec succès.'),
+            content: Text('Rendez-vous annulé avec succès.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -197,7 +197,7 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
         print("Erreur suppression RDV: $e");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur lors de la suppression du rendez-vous: $e'),
+            content: Text('Erreur lors de l\'annulation du rendez-vous: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -211,8 +211,8 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Supprimer le rendez-vous ?'),
-          content: Text(
+          title: const Text('Annuler le rendez-vous ?'),
+          content: Text( // Le titre contient déjà le nom du service
               'Voulez-vous vraiment supprimer ce rendez-vous ?\n\n${appointment.title}\n${DateFormat.yMMMMd('fr_FR').format(appointment.startTime)} à ${DateFormat.Hm('fr_FR').format(appointment.startTime)}'),
           actions: <Widget>[
             TextButton(
@@ -223,10 +223,10 @@ class _CoiffeurHomePageState extends State<CoiffeurHomePage> {
               style: TextButton.styleFrom(
                 foregroundColor: Colors.red,
               ),
-              child: const Text('Supprimer'),
+              child: const Text('Annuler le RDV'),
               onPressed: () {
                 Navigator.of(context).pop(); // Fermer la boîte de dialogue
-                _deleteAppointment(appointment.id);
+                _cancelAppointment(appointment.id);
               },
             ),
           ],

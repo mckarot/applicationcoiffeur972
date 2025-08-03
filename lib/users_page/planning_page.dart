@@ -4,7 +4,8 @@ import 'package:soifapp/widgets/logout_button.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart'; // Pour le formatage des dates
 import 'package:soifapp/users_page/salon_location_page.dart'; // Importer la page Localisation
-import 'package:supabase_flutter/supabase_flutter.dart'; // Importer Supabase
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:timezone/timezone.dart' as tz; // Importer le package timezone
 
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart'; // Importer le widget refactorisé
@@ -14,7 +15,6 @@ import 'package:soifapp/users_page/settings_page.dart'; // Importer la page Para
 class Appointment {
   final String id;
   final String title;
-  final String serviceName;
   final String coiffeurName;
   final tz.TZDateTime startTime; // Utiliser TZDateTime
   final Duration duration;
@@ -22,7 +22,6 @@ class Appointment {
   Appointment({
     required this.id,
     required this.title,
-    required this.serviceName,
     required this.coiffeurName,
     required this.startTime,
     required this.duration,
@@ -31,6 +30,23 @@ class Appointment {
   tz.TZDateTime get endTime => tz.TZDateTime.fromMillisecondsSinceEpoch(
       startTime.location,
       startTime.millisecondsSinceEpoch + duration.inMilliseconds);
+
+  factory Appointment.fromFirestore(
+      QueryDocumentSnapshot doc, tz.Location location) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Appointment(
+      id: doc.id,
+      // Le titre est maintenant le nom du service, directement depuis le document
+      title: data['service_name'] as String? ?? 'Service inconnu',
+      coiffeurName: data['coiffeur_name'] as String? ?? 'Coiffeur inconnu',
+      // Convertir le Timestamp UTC de Firestore en TZDateTime dans le fuseau du salon
+      startTime: tz.TZDateTime.from(
+        (data['start_time'] as Timestamp).toDate(),
+        location,
+      ),
+      duration: Duration(minutes: data['duration_minutes'] as int? ?? 0),
+    );
+  }
 }
 
 class PlanningPage extends StatefulWidget {
@@ -48,6 +64,9 @@ class _PlanningPageState extends State<PlanningPage> {
   bool _isLoading = true;
   String? _errorMessage;
   tz.Location? _salonLocation; // Pour stocker la localisation du salon
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Index pour la barre de navigation inférieure, initialisé à 1 pour "Planning"
   int _currentIndex = 1;
@@ -68,8 +87,13 @@ class _PlanningPageState extends State<PlanningPage> {
           tz.getLocation('America/Martinique'); // Exemple pour Los Angeles
       await _loadClientAppointments();
     } catch (e) {
-      print("Erreur lors de l'initialisation du fuseau horaire du salon: $e");
-      // Gérer l'erreur, peut-être afficher un message à l'utilisateur
+      if (!mounted) return;
+      print("Erreur critique lors de l'initialisation du fuseau horaire: $e");
+      setState(() {
+        _isLoading = false;
+        _errorMessage =
+            "Une erreur de configuration du fuseau horaire est survenue. Impossible de charger le planning.";
+      });
     }
   }
 
@@ -89,45 +113,25 @@ class _PlanningPageState extends State<PlanningPage> {
     }
 
     try {
-      final currentUser = Supabase.instance.client.auth.currentUser;
+      final currentUser = _auth.currentUser;
       if (currentUser == null) {
         throw Exception("Utilisateur non connecté pour charger le planning.");
       }
 
-      final response = await Supabase.instance.client
-          .from('appointments')
-          .select(
-              '*, coiffeur_profile:profiles!appointments_coiffeur_user_id_fkey(nom)')
-          .eq('client_user_id', currentUser.id)
-          .order('start_time', ascending: true);
+      final appointmentsSnapshot = await _firestore
+          .collection('appointments')
+          .where('client_user_id', isEqualTo: currentUser.uid)
+          // Filtrer pour n'afficher que les rendez-vous confirmés
+          .where('status', isEqualTo: 'confirmed')
+          .orderBy('start_time')
+          .get();
 
       if (!mounted) return;
 
-      final List<Appointment> loadedAppointments = [];
-      for (var item in response) {
-        final coiffeurName = (item['coiffeur_profile'] != null &&
-                (item['coiffeur_profile'] as Map).containsKey('nom'))
-            ? item['coiffeur_profile']['nom'] as String? ?? 'Coiffeur inconnu'
-            : 'Coiffeur inconnu';
-        final serviceName =
-            item['service_name'] as String? ?? 'Service inconnu';
+      final List<Appointment> loadedAppointments = appointmentsSnapshot.docs
+          .map((doc) => Appointment.fromFirestore(doc, _salonLocation!))
+          .toList();
 
-        loadedAppointments.add(
-          Appointment(
-            title: 'RDV $coiffeurName - $serviceName', // Titre construit
-            serviceName: serviceName,
-            coiffeurName: coiffeurName,
-            // Convertir l'heure UTC de la DB en TZDateTime dans le fuseau du salon
-            startTime: tz.TZDateTime.from(
-                DateTime.parse(
-                    item['start_time'] as String), // Ceci est une heure UTC
-                _salonLocation!),
-            duration: Duration(
-                minutes: int.parse(item['duration_minutes'].toString())),
-            id: item['id'] as String,
-          ),
-        );
-      }
       _groupAppointments(loadedAppointments); // Passer les RDV chargés
       setState(() {
         _isLoading = false;
@@ -182,13 +186,14 @@ class _PlanningPageState extends State<PlanningPage> {
     }
   }
 
-  Future<void> _deleteAppointment(String appointmentId) async {
+  // Remplacé par une annulation (changement de statut)
+  Future<void> _cancelAppointment(String appointmentId) async {
     try {
-      await Supabase.instance.client
-          .from('appointments')
-          .delete()
-          .eq('id', appointmentId);
-
+      await _firestore
+          .collection('appointments')
+          .doc(appointmentId)
+          .update(
+              {'status': 'cancelled_by_client', 'updated_at': FieldValue.serverTimestamp()});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -219,7 +224,7 @@ class _PlanningPageState extends State<PlanningPage> {
         return AlertDialog(
           title: const Text('Annuler le rendez-vous ?'),
           content: Text(
-              'Voulez-vous vraiment annuler ce rendez-vous ?\n\n${appointment.serviceName} avec ${appointment.coiffeurName}\n${DateFormat.yMMMMd('fr_FR').format(appointment.startTime)} à ${DateFormat.Hm('fr_FR').format(appointment.startTime)}'),
+              'Voulez-vous vraiment annuler ce rendez-vous ?\n\n${appointment.title} avec ${appointment.coiffeurName}\n${DateFormat.yMMMMd('fr_FR').format(appointment.startTime)} à ${DateFormat.Hm('fr_FR').format(appointment.startTime)}'),
           actions: <Widget>[
             TextButton(
               child: const Text('Retour'),
@@ -232,7 +237,7 @@ class _PlanningPageState extends State<PlanningPage> {
               child: const Text('Annuler le RDV'),
               onPressed: () {
                 Navigator.of(context).pop(); // Fermer la boîte de dialogue
-                _deleteAppointment(appointment.id);
+                _cancelAppointment(appointment.id);
               },
             ),
           ],
@@ -424,8 +429,8 @@ class _PlanningPageState extends State<PlanningPage> {
                             child: ListTile(
                               leading: Icon(Icons.event_available,
                                   color: Theme.of(context).colorScheme.primary),
-                              title: Text(
-                                appointment.serviceName,
+                              title: Text( // Le titre de l'appointment est maintenant le nom du service
+                                appointment.title,
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: Theme.of(context)

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -19,10 +20,11 @@ class _SignUpPageState extends State<SignUpPage> {
 
   bool _isLoading = false;
   String _countryDialCode = ''; // Pour stocker le code du pays
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final List<String> _roles = ['user', 'coiffeur', 'admin'];
-  String _selectedRole = 'user';
+  final List<String> _roles = ['client', 'coiffeur', 'admin'];
+  String _selectedRole = 'client';
 
   Future<void> _performSignUp() async {
     if (_formKey.currentState!.validate()) {
@@ -40,70 +42,67 @@ class _SignUpPageState extends State<SignUpPage> {
       });
 
       try {
-        final AuthResponse res = await _supabase.auth.signUp(
+        // 1. Créer l'utilisateur dans Firebase Auth
+        // NOTE: Firebase ne permet pas de créer un utilisateur directement depuis le client
+        // sans connecter l'utilisateur actuel. Pour une vraie page admin, il faudrait
+        // une Cloud Function. Pour la migration, on suppose que l'admin se déconnecte
+        // pour créer un nouveau compte, ou on utilise la même logique que la page d'inscription publique.
+        final UserCredential userCredential =
+            await _auth.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-// Si signUp réussit sans exception, res.user ne devrait pas être null.
+        final User? user = userCredential.user;
 
-        if (res.user == null) {
-// Cas inattendu si aucune AuthException n'a été levée.
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text(
-                      'Erreur d\'inscription: utilisateur non retourné après la création.')),
-            );
-          }
-
-          return; // Sortir tôt pour éviter d'autres erreurs
-        }
-
-        try {
+        if (user != null) {
+          // 2. Créer le document utilisateur dans Firestore
           final String localPhone = _phoneController.text.trim();
           final String? finalPhoneNumber =
               localPhone.isNotEmpty ? '$_countryDialCode$localPhone' : null;
 
-          if (mounted) {
-            await _supabase.from('profiles').insert({
-              'id': res.user!.id,
-              'nom': _nameController.text.trim(),
-              'telephone': finalPhoneNumber,
-              'role': _selectedRole, // Utilise le rôle choisi
-            });
+          final bool isCoiffeur = _selectedRole == 'coiffeur';
 
+          await _firestore.collection('users').doc(user.uid).set({
+            'nom': _nameController.text.trim(),
+            'telephone': finalPhoneNumber,
+            'role': _selectedRole,
+            'actif': !isCoiffeur, // Les coiffeurs sont inactifs par défaut
+            'photo_url': null,
+            'created_at': FieldValue.serverTimestamp(),
+            'updated_at': FieldValue.serverTimestamp(),
+          });
+
+          if (mounted) {
+            String successMessage = 'Compte créé avec succès !';
+            if (isCoiffeur) {
+              successMessage =
+                  'Compte coiffeur créé. Il doit être activé depuis la page "Gérer les coiffeurs".';
+            }
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text(
-                      'Inscription réussie ! Veuillez vérifier vos e-mails pour confirmer votre compte.')),
+              SnackBar(content: Text(successMessage)),
             );
 
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
             }
           }
-        } catch (profileError) {
+        }
+      } on FirebaseAuthException catch (e) {
+        if (mounted) {
+          String errorMessage = "Une erreur d'inscription est survenue.";
+          if (e.code == 'weak-password') {
+            errorMessage = 'Le mot de passe fourni est trop faible.';
+          } else if (e.code == 'email-already-in-use') {
+            errorMessage = 'Un compte existe déjà pour cet email.';
+          } else if (e.code == 'invalid-email') {
+            errorMessage = "L'adresse email est invalide.";
+          }
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                  content: Text(
-                      'Erreur lors de la création du profil: $profileError. L\'utilisateur a été créé mais le profil n\'a pas pu être sauvegardé.')),
+              SnackBar(content: Text(errorMessage)),
             );
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context); // Retour à la page de connexion
-            }
           }
-        }
-      } on AuthException catch (authError) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Erreur d\'inscription: ${authError.message}')),
-          );
-
-          print('Erreur d\'inscription: ${authError.message}');
         }
       } catch (unexpectedError) {
         if (mounted) {
@@ -372,7 +371,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       items: _roles
                           .map((role) => DropdownMenuItem(
                                 value: role,
-                                child: Text(
+                                child: Text( // 'client' au lieu de 'user'
                                     role[0].toUpperCase() + role.substring(1)),
                               ))
                           .toList(),
