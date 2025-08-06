@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:soifapp/models/haircut_service.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class SelectServicePage extends StatefulWidget {
   final List<HaircutService> allServices;
@@ -38,7 +39,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
                 child: const CircularProgressIndicator(strokeWidth: 2.0));
           },
           errorBuilder: (context, error, stackTrace) {
-            print("Erreur chargement image service (select service): $error");
+            // Gérer l'erreur de chargement, par exemple avec un logger
             return _buildDefaultServiceIcon(service, theme);
           },
         ),
@@ -139,8 +140,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
           return const Center(child: CircularProgressIndicator());
         },
         errorBuilder: (context, error, stackTrace) {
-          print(
-              "Erreur chargement image sous-catégorie (select service card): $error");
+          // Gérer l'erreur de chargement, par exemple avec un logger
           // Fallback à l'icône dynamique si l'image ne charge pas
           final icon = _getDynamicIconForSubCategory(subCategoryName);
           final color =
@@ -159,7 +159,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
           child: Icon(icon, color: color, size: 50));
     }
 
-    return Card(
+    final card = Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
@@ -196,9 +196,12 @@ class _SelectServicePageState extends State<SelectServicePage> {
         ),
       ),
     );
+
+    // Appliquer une animation de fondu à l'apparition de la carte
+    return card.animate().fadeIn(duration: 200.ms, curve: Curves.easeIn);
   }
 
-  Widget _buildSubCategorySelection() {
+  Widget _buildSubCategorySelection({Key? key}) {
     // 1. Filtrer les services pour la catégorie principale sélectionnée (ou mixte)
     final relevantServices = widget.allServices.where((service) {
       return service.category == _selectedMainCategory ||
@@ -229,6 +232,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
         .sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     return GridView.builder(
+      key: key, // Clé pour AnimatedSwitcher
       padding: const EdgeInsets.all(12.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -310,16 +314,28 @@ class _SelectServicePageState extends State<SelectServicePage> {
             ),
           ),
           Expanded(
-            child: _selectedSubCategoryName == null
-                ? _buildSubCategorySelection()
-                : _buildServiceListForSubCategory(),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: child,
+                );
+              },
+              // La clé du widget enfant détermine quand l'animation se déclenche.
+              child: _selectedSubCategoryName == null
+                  ? _buildSubCategorySelection(
+                      key: const ValueKey('sub-category-grid'))
+                  : _buildServiceListForSubCategory(
+                      key: ValueKey(_selectedSubCategoryName)),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildServiceListForSubCategory() {
+  Widget _buildServiceListForSubCategory({Key? key}) {
     final List<HaircutService> servicesToList =
         widget.allServices.where((service) {
       // Comparaison insensible à la casse et aux espaces pour la sous-catégorie
@@ -343,6 +359,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
     }
 
     return GridView.builder(
+      key: key, // Clé pour AnimatedSwitcher
       padding: const EdgeInsets.all(8.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2, // Nombre de colonnes

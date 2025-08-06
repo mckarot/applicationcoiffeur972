@@ -19,7 +19,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _phoneController = TextEditingController();
 
   bool _isLoading = false;
-  String _countryDialCode = ''; // Pour stocker le code du pays
+  String _countryDialCode = '+596'; // Pour stocker le code du pays, défaut Martinique
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -343,43 +343,39 @@ class _SignUpPageState extends State<SignUpPage> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                      value: _selectedRole,
-                      decoration: InputDecoration(
-                        labelText: 'Rôle de l\'utilisateur',
-                        labelStyle: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant),
-                        prefixIcon: Icon(Icons.manage_accounts_outlined,
-                            color: theme.colorScheme.primary),
-                        filled: true,
-                        fillColor: theme.colorScheme.surface.withOpacity(0.5),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                              color: theme.colorScheme.primary, width: 2),
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Text(
+                        'Rôle de l\'utilisateur :',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: theme.colorScheme.onSurface),
                       ),
-                      dropdownColor: theme.colorScheme.surfaceContainer,
-                      items: _roles
-                          .map((role) => DropdownMenuItem(
-                                value: role,
-                                child: Text( // 'client' au lieu de 'user'
-                                    role[0].toUpperCase() + role.substring(1)),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedRole = value!;
-                        });
-                      },
+                    ),
+                    Center(
+                      child: ToggleButtons(
+                        isSelected:
+                            _roles.map((role) => _selectedRole == role).toList(),
+                        onPressed: (int index) {
+                          setState(() {
+                            _selectedRole = _roles[index];
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(12.0),
+                        selectedBorderColor: theme.colorScheme.primary,
+                        selectedColor: theme.colorScheme.onPrimary,
+                        fillColor: theme.colorScheme.primary,
+                        color: theme.colorScheme.primary,
+                        constraints: BoxConstraints(
+                          minHeight: 40.0,
+                          minWidth:
+                              (MediaQuery.of(context).size.width - 100) / 3,
+                        ),
+                        children: _roles
+                            .map((role) =>
+                                Text(role[0].toUpperCase() + role.substring(1)))
+                            .toList(),
+                      ),
                     ),
                     const SizedBox(height: 32),
                     _isLoading

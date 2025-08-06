@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,6 +12,7 @@ import 'package:soifapp/users_page/select_service_page.dart';
 import 'package:soifapp/users_page/settings_page.dart';
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:soifapp/widgets/modern_bottom_nav_bar.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'widgets/date_selector.dart';
@@ -243,10 +245,6 @@ class _BookingPageState extends State<BookingPage> {
       final selectedDate = _selectedDate!;
       final serviceDuration = _selectedService!.duration;
 
-      print("--- Début du calcul des créneaux pour le ${selectedDate.toLocal().toString()} ---");
-      print("Coiffeur: $coiffeurId, Service: ${_selectedService!.name} (durée: ${serviceDuration.inMinutes} min)");
-
-
       final tz.TZDateTime nowInSalon = tz.TZDateTime.now(_salonLocation!);
       final bool isToday = tz.TZDateTime(_salonLocation!, selectedDate.year,
               selectedDate.month, selectedDate.day)
@@ -268,7 +266,6 @@ class _BookingPageState extends State<BookingPage> {
           .get();
       final List<Map<String, dynamic>> workSchedulesData =
           workSchedulesSnapshot.docs.map((d) => d.data()).toList();
-      print("Horaires de travail trouvés ($selectedDayOfWeek): $workSchedulesData");
 
       final appointmentsSnapshot = await _firestore.collection('appointments')
           .where('coiffeur_user_id', isEqualTo: coiffeurId)
@@ -281,7 +278,6 @@ class _BookingPageState extends State<BookingPage> {
         final rdvEnd = (rdv['end_time'] as Timestamp).toDate();
         return rdvEnd.isAfter(dayStartUtc);
       }).toList();
-      print("Rendez-vous existants qui chevauchent la journée: $appointmentsData");
 
 
       final absencesSnapshot = await _firestore.collection('coiffeur_absences')
@@ -293,7 +289,6 @@ class _BookingPageState extends State<BookingPage> {
         final absenceEnd = (absence['end_time'] as Timestamp).toDate();
         return absenceEnd.isAfter(dayStartUtc);
       }).toList();
-      print("Absences qui chevauchent la journée: $absencesData");
 
       final List<String> calculatedSlots = [];
       final DateFormat timeFormatter = DateFormat.Hm('fr_FR');
@@ -359,9 +354,6 @@ class _BookingPageState extends State<BookingPage> {
 
           if (!isBooked && !isAbsent) {
             calculatedSlots.add(timeFormatter.format(potentialSlotStart));
-          } else {
-            print(
-                'Créneau ${timeFormatter.format(potentialSlotStart)} rejeté. RDV: $isBooked, Absence: $isAbsent');
           }
 
           potentialSlotStart = potentialSlotStart
@@ -373,7 +365,6 @@ class _BookingPageState extends State<BookingPage> {
         setState(() {
           _dynamicAvailableSlots = calculatedSlots.toSet().toList()..sort();
           _isLoadingSlots = false;
-          print("Créneaux finaux trouvés: $_dynamicAvailableSlots");
         });
       }
     } catch (e, stacktrace) {
@@ -442,7 +433,12 @@ class _BookingPageState extends State<BookingPage> {
 
   Widget _buildCoiffeurSelector() {
     if (_isLoadingCoiffeurs) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: SpinKitFadingCircle(
+          color: Theme.of(context).colorScheme.primary,
+          size: 50.0,
+        ),
+      );
     }
 
     if (_coiffeursError != null) {
@@ -500,12 +496,27 @@ class _BookingPageState extends State<BookingPage> {
                     ),
                     child: coiffeur.photoUrl != null &&
                             coiffeur.photoUrl!.isNotEmpty
-                        ? CircleAvatar(
-                            radius: 35,
-                            backgroundImage:
-                                CachedNetworkImageProvider(coiffeur.photoUrl!),
-                            backgroundColor:
-                                Colors.grey[200], // Placeholder couleur
+                        ? CachedNetworkImage(
+                            imageUrl: coiffeur.photoUrl!,
+                            imageBuilder: (context, imageProvider) =>
+                                CircleAvatar(
+                              radius: 35,
+                              backgroundImage: imageProvider,
+                            ),
+                            placeholder: (context, url) => const CircleAvatar(
+                              radius: 35, // Maintenir la taille
+                              backgroundColor: Colors.grey, // Couleur de fond
+                              child: SpinKitFadingCircle(
+                                color: Colors.white,
+                                size: 30.0,
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => CircleAvatar(
+                              radius: 35,
+                              backgroundColor: coiffeur.color.withOpacity(0.8),
+                              child: Icon(coiffeur.icon,
+                                  size: 30, color: Colors.white),
+                            ),
                           )
                         : CircleAvatar(
                             radius: 35,
@@ -528,7 +539,11 @@ class _BookingPageState extends State<BookingPage> {
                 ],
               ),
             ),
-          );
+          )
+              .animate()
+              .fadeIn(delay: (100 * index).ms, duration: 400.ms)
+              .slideX(begin: 0.5, curve: Curves.easeOutCubic)
+              .shimmer(delay: (100 * index).ms, duration: 600.ms);
         },
       ),
     );
@@ -585,16 +600,19 @@ class _BookingPageState extends State<BookingPage> {
           children: <Widget>[
             // Sélecteur de date
             DateSelector(
-              selectedDate: _selectedDate,
-              onDateSelected: (date) {
-                setState(() {
-                  _selectedDate = date;
-                  _selectedCreneau = null;
-                });
-                _fetchAvailableSlots();
-              },
-              onPickDateTap: _pickDate,
-            ),
+                    selectedDate: _selectedDate,
+                    onDateSelected: (date) {
+                      setState(() {
+                        _selectedDate = date;
+                        _selectedCreneau = null;
+                      });
+                      _fetchAvailableSlots();
+                    },
+                    onPickDateTap: _pickDate,
+                  )
+                  .animate()
+                  .fadeIn(duration: 500.ms)
+                  .slideY(begin: 0.2, curve: Curves.easeInOut),
             const SizedBox(height: 30),
 
             // Choix du service
@@ -611,21 +629,26 @@ class _BookingPageState extends State<BookingPage> {
               ServiceSelector(
                 selectedService: _selectedService,
                 onTap: _navigateToSelectServicePage,
-              ),
+              ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.2),
             ],
             const SizedBox(height: 30),
 
             // Choix du coiffeur
-            if (_selectedDate != null && _selectedService != null) ...[
-              Text('3. Choisissez votre coiffeur/coiffeuse :',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary)),
-              const SizedBox(height: 15),
-              _buildCoiffeurSelector(),
-              const SizedBox(height: 30)
-            ] else if (_selectedDate != null && _selectedService == null)
+            if (_selectedDate != null && _selectedService != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('3. Choisissez votre coiffeur/coiffeuse :',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary)),
+                  const SizedBox(height: 15),
+                  _buildCoiffeurSelector(),
+                  const SizedBox(height: 30),
+                ],
+              ).animate().fadeIn(duration: 400.ms)
+            else if (_selectedDate != null && _selectedService == null)
               _buildInfoMessage('Veuillez d\'abord choisir un service.'),
 
             // Affichage des créneaux (seulement si date et coiffeur sont choisis)
@@ -672,15 +695,17 @@ class _BookingPageState extends State<BookingPage> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12.0)),
                   ),
-                  // ...
                   onPressed: _selectedCreneau != null
                       ? _confirmBooking // Appel de la méthode de confirmation
                       : null,
-                  // ...
-                  // Bouton désactivé si aucun créneau n'est choisi
-                ),
+                ).animate(target: _selectedCreneau != null ? 1.0 : 0.0).scaleXY(
+                        begin: 0.95,
+                        end: 1.0,
+                        duration: 250.ms,
+                        curve: Curves.easeOut),
               ),
-            ] else if (_selectedDate != null &&
+            ].animate().fadeIn(duration: 400.ms)
+            else if (_selectedDate != null &&
                 _selectedService != null &&
                 _selectedCoiffeurId == null)
               _buildInfoMessage(
@@ -710,7 +735,7 @@ class _BookingPageState extends State<BookingPage> {
               color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
               fontStyle: FontStyle.italic,
               fontSize: 16),
-        ),
+        ).animate().fadeIn(duration: 300.ms),
       ),
     );
   }

@@ -5,6 +5,8 @@ import 'package:soifapp/users_page/booking_page.dart'; // Importer la nouvelle p
 import 'package:soifapp/users_sign_up_page.dart'; // Importer la page d'inscription utilisateur
 import 'package:soifapp/coiffeurs_page/coiffeur_home_page.dart'; // Importer la page d'accueil coiffeur
 import 'package:soifapp/admins_pages/admin_home_page.dart'; // Importer la page d'accueil admin
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/gestures.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -18,6 +20,7 @@ class _AuthPageState extends State<AuthPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -116,9 +119,95 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
+  Future<void> _forgotPassword() async {
+    // Utiliser un contrôleur local pour le dialogue
+    final emailDialogController = TextEditingController();
+    final dialogFormKey = GlobalKey<FormState>();
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Réinitialiser le mot de passe'),
+          content: Form(
+            key: dialogFormKey,
+            child: TextFormField(
+              controller: emailDialogController,
+              decoration: const InputDecoration(
+                labelText: 'Entrez votre email',
+                hintText: 'vous@exemple.com',
+              ),
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                if (value == null || value.isEmpty || !value.contains('@')) {
+                  return 'Veuillez entrer un email valide';
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annuler'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            ElevatedButton(
+              child: const Text('Envoyer'),
+              onPressed: () async {
+                if (dialogFormKey.currentState!.validate()) {
+                  try {
+                    await _auth.sendPasswordResetEmail(
+                        email: emailDialogController.text.trim());
+                    if (!mounted) return;
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content:
+                              Text('Un lien de réinitialisation a été envoyé.')),
+                    );
+                  } on FirebaseAuthException catch (e) {
+                    // Gérer les erreurs spécifiques si nécessaire
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(e.message ?? "Une erreur est survenue.")),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Impossible d\'ouvrir le lien : $urlString')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context); // Obtenir le thème pour un style cohérent
+    final inputDecoration = InputDecoration(
+      filled: true,
+      fillColor: theme.colorScheme.surface.withOpacity(0.5),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12.0),
+          borderSide: BorderSide.none),
+      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+      prefixIconColor: theme.colorScheme.primary,
+      // Style d'erreur un peu moins agressif
+      errorStyle: TextStyle(color: theme.colorScheme.error.withOpacity(0.85)),
+    );
 
     return Scaffold(
       // Pas d'AppBar pour un look plus immersif. Le contenu est protégé par SafeArea.
@@ -169,15 +258,9 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 48),
                     TextFormField(
                       controller: _emailController,
-                      decoration: InputDecoration(
+                      decoration: inputDecoration.copyWith(
                         labelText: 'Email',
-                        prefixIcon: Icon(Icons.email_outlined,
-                            color: theme.colorScheme.primary),
-                        filled: true,
-                        fillColor: theme.colorScheme.surface.withOpacity(0.5),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                            borderSide: BorderSide.none),
+                        prefixIcon: const Icon(Icons.email_outlined),
                       ),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
@@ -192,27 +275,45 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _passwordController,
-                      decoration: InputDecoration(
+                      decoration: inputDecoration.copyWith(
                         labelText: 'Mot de passe',
-                        prefixIcon: Icon(Icons.lock_outline,
-                            color: theme.colorScheme.primary),
-                        filled: true,
-                        fillColor: theme.colorScheme.surface.withOpacity(0.5),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                            borderSide: BorderSide.none),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: theme.colorScheme.primary.withOpacity(0.7),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                        ),
                       ),
-                      obscureText: true,
+                      obscureText: !_isPasswordVisible,
                       validator: (value) {
                         if (value == null ||
                             value.isEmpty ||
                             value.length < 6) {
-                          return 'Le mot de passe doit contenir au moins 6 caractères';
+                          return 'Le mot de passe doit faire au moins 6 caractères';
                         }
                         return null;
                       },
                     ),
-                    const SizedBox(height: 32),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _forgotPassword,
+                        child: Text('Mot de passe oublié ?',
+                            style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     _isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : ElevatedButton(
@@ -250,6 +351,46 @@ class _AuthPageState extends State<AuthPage> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text.rich(
+                        TextSpan(
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withOpacity(0.7),
+                            fontSize: 12,
+                          ),
+                          children: [
+                            const TextSpan(
+                                text: 'En continuant, vous acceptez notre '),
+                            TextSpan(
+                              text: 'Politique de confidentialité',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => _launchURL(
+                                    'https://coiffure-salon.web.app/politique-de-confidentialite.html'),
+                            ),
+                            const TextSpan(text: ' et nos '),
+                            TextSpan(
+                              text: 'Conditions d\'utilisation',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => _launchURL(
+                                    'https://coiffure-salon.web.app/conditions-d-utilisation.html'),
+                            ),
+                            const TextSpan(text: '.'),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ],
                 ),

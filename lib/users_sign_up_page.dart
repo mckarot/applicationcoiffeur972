@@ -23,8 +23,8 @@ class _UsersSignUpPageState extends State<UsersSignUpPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Le rôle est fixe pour cette page d'inscription utilisateur
-  String _selectedRole = 'client';
+  // Le rôle est fixe à 'client' pour cette page d'inscription publique.
+  final String _selectedRole = 'client';
 
   Future<void> _performSignUp() async {
     if (_formKey.currentState!.validate()) {
@@ -56,28 +56,21 @@ class _UsersSignUpPageState extends State<UsersSignUpPage> {
           final String? finalPhoneNumber =
               localPhone.isNotEmpty ? '$_countryDialCode$localPhone' : null;
 
-          final bool isCoiffeur = _selectedRole == 'coiffeur';
-
           await _firestore.collection('users').doc(user.uid).set({
             'nom': _nameController.text.trim(),
             'telephone': finalPhoneNumber,
             'role': _selectedRole,
-            'actif':
-                !isCoiffeur, // Les coiffeurs doivent être activés par un admin
+            'actif': true, // Les clients sont actifs par défaut
             'photo_url': null,
             'created_at': FieldValue.serverTimestamp(),
             'updated_at': FieldValue.serverTimestamp(),
           });
 
           if (mounted) {
-            String successMessage =
-                'Inscription réussie ! Vous pouvez maintenant vous connecter.';
-            if (isCoiffeur) {
-              successMessage =
-                  'Inscription réussie ! Votre compte coiffeur sera activé par un administrateur.';
-            }
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(successMessage)),
+              const SnackBar(
+                  content: Text(
+                      'Inscription réussie ! Vous pouvez maintenant vous connecter.')),
             );
 
             if (Navigator.canPop(context)) {
@@ -248,51 +241,6 @@ class _UsersSignUpPageState extends State<UsersSignUpPage> {
                           value == null || value.isEmpty || !value.contains('@')
                               ? 'Veuillez entrer un email valide'
                               : null,
-                    ),
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10.0),
-                      child: Text(
-                        'Je suis un :',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(color: theme.colorScheme.onSurface),
-                      ),
-                    ),
-                    Center(
-                      child: ToggleButtons(
-                        isSelected: [
-                          _selectedRole == 'client',
-                          _selectedRole == 'coiffeur',
-                          _selectedRole == 'admin',
-                        ],
-                        onPressed: (int index) {
-                          setState(() {
-                            if (index == 0) {
-                              _selectedRole = 'client';
-                            } else if (index == 1) {
-                              _selectedRole = 'coiffeur';
-                            } else {
-                              _selectedRole = 'admin';
-                            }
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(12.0),
-                        selectedBorderColor: theme.colorScheme.primary,
-                        selectedColor: theme.colorScheme.onPrimary,
-                        fillColor: theme.colorScheme.primary,
-                        color: theme.colorScheme.primary,
-                        constraints: BoxConstraints(
-                          minHeight: 40.0,
-                          minWidth:
-                              (MediaQuery.of(context).size.width - 100) / 3,
-                        ),
-                        children: const [
-                          Text('Client'),
-                          Text('Coiffeur'),
-                          Text('Admin')
-                        ],
-                      ),
                     ),
                     const SizedBox(height: 20),
                     IntlPhoneField(

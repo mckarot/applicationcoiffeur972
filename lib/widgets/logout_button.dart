@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:soifapp/auth_page.dart';
+import 'package:soifapp/welcome_page.dart';
 
 class LogoutButton extends StatelessWidget {
   const LogoutButton({super.key});
@@ -39,7 +39,7 @@ class LogoutButton extends StatelessWidget {
       // S'assurer que le widget est toujours monté avant de naviguer
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const AuthPage()),
+          MaterialPageRoute(builder: (context) => const WelcomePage()),
           (Route<dynamic> route) => false,
         );
       }
