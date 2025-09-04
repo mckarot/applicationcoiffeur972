@@ -3,11 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:soifapp/admins_pages/admin_edit_sub_category_page.dart';
 import 'package:soifapp/models/haircut_service.dart';
 import 'package:uuid/uuid.dart';
 
-/// Page de sélection du service à modifier.
-/// Réutilise la logique de `AdminManageServicesPage` pour la navigation.
 class AdminEditServicePage extends StatefulWidget {
   const AdminEditServicePage({super.key});
 
@@ -18,6 +17,7 @@ class AdminEditServicePage extends StatefulWidget {
 class _AdminEditServicePageState extends State<AdminEditServicePage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<HaircutService> _services = [];
+  List<SubCategory> _subCategories = [];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -33,10 +33,10 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
   @override
   void initState() {
     super.initState();
-    _fetchServices();
+    _fetchData();
   }
 
-  Future<void> _fetchServices() async {
+  Future<void> _fetchData() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -47,10 +47,16 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
           .collection('haircut_services')
           .orderBy('name')
           .get();
+      final subCategoriesSnapshot =
+          await _firestore.collection('sub_categories').get();
+
       if (mounted) {
         setState(() {
           _services = servicesSnapshot.docs
               .map((doc) => HaircutService.fromFirestore(doc))
+              .toList();
+          _subCategories = subCategoriesSnapshot.docs
+              .map((doc) => SubCategory.fromFirestore(doc))
               .toList();
           _isLoading = false;
         });
@@ -74,37 +80,34 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
       ),
     ).then((wasUpdated) {
       if (wasUpdated == true) {
-        _fetchServices(); // Rafraîchir la liste si une modification a eu lieu
+        _fetchData();
       }
     });
   }
 
-  // --- Méthodes de construction de l'UI adaptées de AdminManageServicesPage ---
-
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
     if (service.imagePlaceholder.isNotEmpty) {
-      // L'URL complète est maintenant stockée directement
       final imageUrl = service.imagePlaceholder;
-        return Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (BuildContext context, Widget child,
-              ImageChunkEvent? loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder:
-              (BuildContext context, Object error, StackTrace? stackTrace) {
-            return _buildDefaultServiceIcon(service, context);
-          },
-        );
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (BuildContext context, Widget child,
+            ImageChunkEvent? loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder:
+            (BuildContext context, Object error, StackTrace? stackTrace) {
+          return _buildDefaultServiceIcon(service, context);
+        },
+      );
     }
     return _buildDefaultServiceIcon(service, context);
   }
@@ -186,31 +189,29 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
     return colors[name.hashCode % colors.length];
   }
 
-  Widget _buildSubCategoryCard(
-      String subCategoryName, String? subCategoryImagePath) {
+  Widget _buildSubCategoryCard(SubCategory subCategory) {
     Widget imageWidget;
 
-    if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      final imageUrl = subCategoryImagePath;
-        imageWidget = Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return const Center(child: CircularProgressIndicator());
-          },
-          errorBuilder: (context, error, stackTrace) {
-            final icon = _getDynamicIconForSubCategory(subCategoryName);
-            final color =
-                _getDynamicColorForSubCategory(subCategoryName, context);
-            return Container(
-                color: color.withOpacity(0.15),
-                child: Icon(icon, color: color, size: 50));
-          },
-        );
+    if (subCategory.imageUrl != null && subCategory.imageUrl!.isNotEmpty) {
+      imageWidget = Image.network(
+        subCategory.imageUrl!,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) {
+          final icon = _getDynamicIconForSubCategory(subCategory.name);
+          final color =
+              _getDynamicColorForSubCategory(subCategory.name, context);
+          return Container(
+              color: color.withOpacity(0.15),
+              child: Icon(icon, color: color, size: 50));
+        },
+      );
     } else {
-      final icon = _getDynamicIconForSubCategory(subCategoryName);
-      final color = _getDynamicColorForSubCategory(subCategoryName, context);
+      final icon = _getDynamicIconForSubCategory(subCategory.name);
+      final color = _getDynamicColorForSubCategory(subCategory.name, context);
       imageWidget = Container(
           color: color.withOpacity(0.15),
           child: Icon(icon, color: color, size: 50));
@@ -222,11 +223,10 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedSubCategoryName = subCategoryName;
+            _selectedSubCategoryName = subCategory.name;
           });
         },
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
@@ -235,7 +235,7 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
             Padding(
               padding: const EdgeInsets.all(10.0),
               child: Text(
-                subCategoryName,
+                subCategory.name,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
@@ -253,30 +253,11 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
   }
 
   Widget _buildSubCategorySelectionGrid() {
-    final relevantServices = _services.where((service) {
-      return service.category == _selectedMainCategory ||
-          service.category == ServiceCategory.mixte;
+    final filteredSubCategories = _subCategories.where((sc) {
+      return sc.category == _selectedMainCategory.toJson();
     }).toList();
 
-    final Map<String, String?> subCategoryDetails = {};
-    for (var service in relevantServices) {
-      final subCategoryName = service.subCategory.trim();
-      if (subCategoryName.isNotEmpty) {
-        if (!subCategoryDetails.containsKey(subCategoryName) ||
-            (subCategoryDetails[subCategoryName] == null &&
-                service.imagePlaceholderSousCategory != null &&
-                service.imagePlaceholderSousCategory!.isNotEmpty)) {
-          subCategoryDetails[subCategoryName] =
-              service.imagePlaceholderSousCategory;
-        }
-      }
-    }
-    final List<String> displayableSubCategoryNames =
-        subCategoryDetails.keys.toList();
-    displayableSubCategoryNames
-        .sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-    if (displayableSubCategoryNames.isEmpty) {
+    if (filteredSubCategories.isEmpty) {
       return const Center(
           child: Text("Aucune sous-catégorie pour cette sélection."));
     }
@@ -289,11 +270,10 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
         mainAxisSpacing: 12.0,
         childAspectRatio: 0.9,
       ),
-      itemCount: displayableSubCategoryNames.length,
+      itemCount: filteredSubCategories.length,
       itemBuilder: (context, index) {
-        final subCategoryName = displayableSubCategoryNames[index];
-        final imagePath = subCategoryDetails[subCategoryName];
-        return _buildSubCategoryCard(subCategoryName, imagePath);
+        final subCategory = filteredSubCategories[index];
+        return _buildSubCategoryCard(subCategory);
       },
     );
   }
@@ -320,66 +300,46 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
               ? Center(
                   child: Text(_errorMessage!,
                       style: const TextStyle(color: Colors.red)))
-              : _services.isEmpty
-                  ? const Center(child: Text('Aucun service à modifier.'))
-                  : Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12.0, horizontal: 8.0),
-                          child: ToggleButtons(
-                            borderColor: Theme.of(context).colorScheme.outline,
-                            selectedBorderColor:
-                                Theme.of(context).colorScheme.primary,
-                            selectedColor:
-                                Theme.of(context).colorScheme.onPrimary,
-                            fillColor: Theme.of(context).colorScheme.primary,
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(8.0),
-                            isSelected: _displayCategories
-                                .map((category) =>
-                                    _selectedMainCategory == category)
-                                .toList(),
-                            onPressed: (int index) {
-                              setState(() {
-                                _selectedMainCategory =
-                                    _displayCategories[index];
-                                _selectedSubCategoryName = null;
-                              });
-                            },
-                            children: _displayCategories.map((category) {
-                              String text;
-                              switch (category) {
-                                case ServiceCategory.femme:
-                                  text = 'Femme';
-                                  break;
-                                case ServiceCategory.homme:
-                                  text = 'Homme';
-                                  break;
-                                case ServiceCategory.enfant:
-                                  text = 'Enfant';
-                                  break;
-                                case ServiceCategory.mixte:
-                                  text = 'Mixte';
-                                  break;
-                                case ServiceCategory.undefined:
-                                  text = 'Autre';
-                                  break;
-                              }
-                              return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16.0),
-                                  child: Text(text));
-                            }).toList(),
-                          ),
-                        ),
-                        Expanded(
-                          child: _selectedSubCategoryName == null
-                              ? _buildSubCategorySelectionGrid()
-                              : _buildServiceListForEditing(),
-                        ),
-                      ],
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12.0, horizontal: 8.0),
+                      child: ToggleButtons(
+                        borderColor: Theme.of(context).colorScheme.outline,
+                        selectedBorderColor:
+                            Theme.of(context).colorScheme.primary,
+                        selectedColor:
+                            Theme.of(context).colorScheme.onPrimary,
+                        fillColor: Theme.of(context).colorScheme.primary,
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(8.0),
+                        isSelected: _displayCategories
+                            .map((category) =>
+                                _selectedMainCategory == category)
+                            .toList(),
+                        onPressed: (int index) {
+                          setState(() {
+                            _selectedMainCategory =
+                                _displayCategories[index];
+                            _selectedSubCategoryName = null;
+                          });
+                        },
+                        children: _displayCategories.map((category) {
+                          return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0),
+                              child: Text(category.toJson()[0].toUpperCase() + category.toJson().substring(1)));
+                        }).toList(),
+                      ),
                     ),
+                    Expanded(
+                      child: _selectedSubCategoryName == null
+                          ? _buildSubCategorySelectionGrid()
+                          : _buildServiceListForEditing(),
+                    ),
+                  ],
+                ),
     );
   }
 
@@ -392,8 +352,7 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
       bool subCategoryMatch = service.subCategory.trim().toLowerCase() ==
           _selectedSubCategoryName?.trim().toLowerCase();
       if (!subCategoryMatch) return false;
-      bool categoryMatch = service.category == _selectedMainCategory ||
-          service.category == ServiceCategory.mixte;
+      bool categoryMatch = service.category == _selectedMainCategory;
       return categoryMatch;
     }).toList();
 
@@ -403,7 +362,7 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchServices,
+      onRefresh: _fetchData,
       child: GridView.builder(
         padding: const EdgeInsets.all(12.0),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -423,7 +382,6 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
             child: InkWell(
               onTap: () => _navigateToEditForm(service),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
@@ -478,7 +436,6 @@ class _AdminEditServicePageState extends State<AdminEditServicePage> {
   }
 }
 
-/// Formulaire d'édition pour une prestation.
 class _EditServiceFormPage extends StatefulWidget {
   final HaircutService service;
 
@@ -533,28 +490,24 @@ class _EditServiceFormPageState extends State<_EditServiceFormPage> {
 
     try {
       String? newImageUrl;
-      // Gérer la mise à jour de l'image
       if (_selectedImageFile != null) {
-        // Supprimer l'ancienne image si elle existe
         if (widget.service.imagePlaceholder.isNotEmpty) {
           try {
             await _storage.refFromURL(widget.service.imagePlaceholder).delete();
           } catch (e) {
             print(
-                "Avertissement: L'ancienne image n'a pas pu être supprimée (peut-être qu'elle n'existait pas): $e");
+                "Avertissement: L'ancienne image n'a pas pu être supprimée: $e");
           }
         }
 
-        // Uploader la nouvelle image
         final String fileExtension =
             _selectedImageFile!.path.split('.').last.toLowerCase();
         final String fileName = '${const Uuid().v4()}.$fileExtension';
         final Reference storageRef =
             _storage.ref().child('service_images/$fileName');
 
-        final UploadTask uploadTask = storageRef.putFile(_selectedImageFile!);
-        final TaskSnapshot snapshot = await uploadTask;
-        newImageUrl = await snapshot.ref.getDownloadURL();
+        await storageRef.putFile(_selectedImageFile!);
+        newImageUrl = await storageRef.getDownloadURL();
       }
 
       final dataToUpdate = {
@@ -575,8 +528,7 @@ class _EditServiceFormPageState extends State<_EditServiceFormPage> {
           content: Text('Prestation mise à jour avec succès !'),
           backgroundColor: Colors.green,
         ));
-        Navigator.pop(
-            context, true); // Retourne true pour signaler la mise à jour
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {

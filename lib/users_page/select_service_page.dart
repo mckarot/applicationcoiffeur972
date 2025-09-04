@@ -4,17 +4,35 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 class SelectServicePage extends StatefulWidget {
   final List<HaircutService> allServices;
+  final Future<List<HaircutService>> Function() onRefresh;
 
-  const SelectServicePage({super.key, required this.allServices});
+  const SelectServicePage(
+      {super.key, required this.allServices, required this.onRefresh});
 
   @override
   State<SelectServicePage> createState() => _SelectServicePageState();
 }
 
 class _SelectServicePageState extends State<SelectServicePage> {
+  late List<HaircutService> _currentServices;
   ServiceCategory _selectedMainCategory =
       ServiceCategory.femme; // Catégorie par défaut
   String? _selectedSubCategoryName;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentServices = widget.allServices;
+  }
+
+  Future<void> _handleRefresh() async {
+    final newServices = await widget.onRefresh();
+    if (mounted) {
+      setState(() {
+        _currentServices = newServices;
+      });
+    }
+  }
 
   // Helper pour afficher l'image du service ou une icône par défaut
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
@@ -202,10 +220,9 @@ class _SelectServicePageState extends State<SelectServicePage> {
   }
 
   Widget _buildSubCategorySelection({Key? key}) {
-    // 1. Filtrer les services pour la catégorie principale sélectionnée (ou mixte)
-    final relevantServices = widget.allServices.where((service) {
-      return service.category == _selectedMainCategory ||
-          service.category == ServiceCategory.mixte;
+    // 1. Filtrer les services pour la catégorie principale sélectionnée
+    final relevantServices = _currentServices.where((service) {
+      return service.category == _selectedMainCategory;
     }).toList();
 
     // Crée une map pour stocker le nom de la sous-catégorie et son image (si disponible)
@@ -254,8 +271,6 @@ class _SelectServicePageState extends State<SelectServicePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_selectedSubCategoryName ?? 'Choisissez un Service'),
-        // backgroundColor: Colors.pink[100], // Supprimé pour utiliser le thème
-        // iconTheme: IconThemeData(color: Colors.pink[700]), // Supprimé pour utiliser le thème
         leading: _selectedSubCategoryName != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new),
@@ -267,86 +282,88 @@ class _SelectServicePageState extends State<SelectServicePage> {
               )
             : null, // Utilise le bouton retour par défaut de la navigation
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-            child: ToggleButtons(
-              borderColor: Theme.of(context).colorScheme.outline,
-              selectedBorderColor: Theme.of(context).colorScheme.primary,
-              selectedColor: Theme.of(context).colorScheme.onPrimary,
-              fillColor: Theme.of(context).colorScheme.primary,
-              color: Theme.of(context).colorScheme.primary,
-              borderRadius: BorderRadius.circular(8.0),
-              isSelected: _displayCategories
-                  .map((category) => _selectedMainCategory == category)
-                  .toList(),
-              onPressed: (int index) {
-                setState(() {
-                  _selectedMainCategory = _displayCategories[index];
-                  _selectedSubCategoryName =
-                      null; // Réinitialiser la sous-catégorie
-                });
-              },
-              children: _displayCategories.map((category) {
-                String text;
-                switch (category) {
-                  case ServiceCategory.femme:
-                    text = 'Femme';
-                    break;
-                  case ServiceCategory.homme:
-                    text = 'Homme';
-                    break;
-                  case ServiceCategory.enfant:
-                    text = 'Enfant';
-                    break;
-                  case ServiceCategory.mixte:
-                    text = 'Mixte'; // Afficher "Mixte"
-                    break;
-                  case ServiceCategory.undefined:
-                    text = 'Autre'; // Ne devrait pas être affiché
-                }
-                return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Text(text));
-              }).toList(),
+      body: RefreshIndicator(
+        onRefresh: _handleRefresh,
+        child: Column(
+          children: [
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+              child: ToggleButtons(
+                borderColor: Theme.of(context).colorScheme.outline,
+                selectedBorderColor: Theme.of(context).colorScheme.primary,
+                selectedColor: Theme.of(context).colorScheme.onPrimary,
+                fillColor: Theme.of(context).colorScheme.primary,
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(8.0),
+                isSelected: _displayCategories
+                    .map((category) => _selectedMainCategory == category)
+                    .toList(),
+                onPressed: (int index) {
+                  setState(() {
+                    _selectedMainCategory = _displayCategories[index];
+                    _selectedSubCategoryName =
+                        null; // Réinitialiser la sous-catégorie
+                  });
+                },
+                children: _displayCategories.map((category) {
+                  String text;
+                  switch (category) {
+                    case ServiceCategory.femme:
+                      text = 'Femme';
+                      break;
+                    case ServiceCategory.homme:
+                      text = 'Homme';
+                      break;
+                    case ServiceCategory.enfant:
+                      text = 'Enfant';
+                      break;
+                    case ServiceCategory.mixte:
+                      text = 'Mixte'; // Afficher "Mixte"
+                      break;
+                    case ServiceCategory.undefined:
+                      text = 'Autre'; // Ne devrait pas être affiché
+                  }
+                  return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(text));
+                }).toList(),
+              ),
             ),
-          ),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 350),
-              transitionBuilder: (Widget child, Animation<double> animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
-              },
-              // La clé du widget enfant détermine quand l'animation se déclenche.
-              child: _selectedSubCategoryName == null
-                  ? _buildSubCategorySelection(
-                      key: const ValueKey('sub-category-grid'))
-                  : _buildServiceListForSubCategory(
-                      key: ValueKey(_selectedSubCategoryName)),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  );
+                },
+                // La clé du widget enfant détermine quand l'animation se déclenche.
+                child: _selectedSubCategoryName == null
+                    ? _buildSubCategorySelection(
+                        key: const ValueKey('sub-category-grid'))
+                    : _buildServiceListForSubCategory(
+                        key: ValueKey(_selectedSubCategoryName)),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildServiceListForSubCategory({Key? key}) {
     final List<HaircutService> servicesToList =
-        widget.allServices.where((service) {
+        _currentServices.where((service) {
       // Comparaison insensible à la casse et aux espaces pour la sous-catégorie
       bool subCategoryMatch = service.subCategory.trim().toLowerCase() ==
           _selectedSubCategoryName?.trim().toLowerCase();
 
       if (!subCategoryMatch) return false;
 
-      // Le service doit appartenir à la catégorie principale sélectionnée OU être mixte
-      bool categoryMatch = service.category == _selectedMainCategory ||
-          service.category == ServiceCategory.mixte;
+      // Le service doit appartenir à la catégorie principale sélectionnée
+      bool categoryMatch = service.category == _selectedMainCategory;
       return categoryMatch;
     }).toList();
 

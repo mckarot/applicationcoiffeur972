@@ -176,15 +176,14 @@ class _BookingPageState extends State<BookingPage> {
           _coiffeursError = 'Impossible de charger les coiffeurs.';
           _isLoadingCoiffeurs = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_coiffeursError!)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_coiffeursError!)));
       }
     }
   }
 
-  Future<void> _fetchServices() async {
-    if (!mounted) return;
+  Future<List<HaircutService>> _fetchServices() async {
+    if (!mounted) return [];
     setState(() {
       _isLoadingServices = true;
       _servicesError = null;
@@ -194,14 +193,17 @@ class _BookingPageState extends State<BookingPage> {
       final servicesSnapshot =
           await _firestore.collection('haircut_services').get();
 
+      final fetchedServices = servicesSnapshot.docs
+          .map((doc) => HaircutService.fromFirestore(doc))
+          .toList();
+
       if (mounted) {
         setState(() {
-          _allServices = servicesSnapshot.docs
-              .map((doc) => HaircutService.fromFirestore(doc))
-              .toList();
+          _allServices = fetchedServices;
           _isLoadingServices = false;
         });
       }
+      return fetchedServices;
     } catch (e) {
       if (mounted) {
         print('Erreur lors de la récupération des services: $e');
@@ -213,6 +215,7 @@ class _BookingPageState extends State<BookingPage> {
           SnackBar(content: Text(_servicesError!)),
         );
       }
+      return []; // Retourne une liste vide en cas d'erreur
     }
   }
 
@@ -326,8 +329,8 @@ class _BookingPageState extends State<BookingPage> {
               potentialSlotStart.add(serviceDuration);
 
           if (isToday && potentialSlotStart.isBefore(nowInSalon)) {
-            potentialSlotStart = potentialSlotStart
-                .add(const Duration(minutes: slotIncrementMinutes));
+            potentialSlotStart =
+                potentialSlotStart.add(const Duration(minutes: slotIncrementMinutes));
             continue;
           }
 
@@ -346,8 +349,7 @@ class _BookingPageState extends State<BookingPage> {
             final absenceStart = tz.TZDateTime.from(
                 (absence['start_time'] as Timestamp).toDate(),
                 _salonLocation!);
-            final absenceEnd = tz.TZDateTime.from(
-                (absence['end_time'] as Timestamp).toDate(), _salonLocation!);
+            final absenceEnd = tz.TZDateTime.from((absence['end_time'] as Timestamp).toDate(), _salonLocation!);
             return potentialSlotStart.isBefore(absenceEnd) &&
                 potentialSlotEnd.isAfter(absenceStart);
           });
@@ -356,8 +358,8 @@ class _BookingPageState extends State<BookingPage> {
             calculatedSlots.add(timeFormatter.format(potentialSlotStart));
           }
 
-          potentialSlotStart = potentialSlotStart
-              .add(const Duration(minutes: slotIncrementMinutes));
+          potentialSlotStart =
+              potentialSlotStart.add(const Duration(minutes: slotIncrementMinutes));
         }
       }
 
@@ -415,7 +417,10 @@ class _BookingPageState extends State<BookingPage> {
         await Navigator.push<HaircutService>(
       context,
       MaterialPageRoute(
-        builder: (context) => SelectServicePage(allServices: _allServices),
+        builder: (context) => SelectServicePage(
+          allServices: _allServices,
+          onRefresh: _fetchServices,
+        ),
       ),
     );
 
@@ -829,8 +834,7 @@ class _BookingPageState extends State<BookingPage> {
         // Naviguer vers la page de gestion des RDV ou le planning
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-              builder: (context) =>
+          MaterialPageRoute(builder: (context) =>
                   const PlanningPage()), // Ou ManageAppointmentsPage
         );
       }

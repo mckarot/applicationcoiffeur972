@@ -57,7 +57,9 @@ class HaircutService {
       name: data['name'] as String,
       duration: Duration(minutes: data['duration_minutes'] as int),
       price: (data['price'] as num).toDouble(),
-      subCategory: data['sub_category'] as String,
+      subCategory: (data['sub_category'] as String).isNotEmpty
+          ? '${(data['sub_category'] as String)[0].toUpperCase()}${(data['sub_category'] as String).substring(1).toLowerCase()}'
+          : '',
       category: serviceCategoryFromString(data['category'] as String? ?? 'undefined'),
       imagePlaceholder: data['image_placeholder'] as String? ?? '',
       imagePlaceholderSousCategory: data['image_placeholder_sous_category'] as String?,

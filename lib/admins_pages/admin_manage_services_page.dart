@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:soifapp/models/haircut_service.dart'; // Assurez-vous que le chemin est correct
+import 'package:soifapp/admins_pages/admin_edit_sub_category_page.dart';
+import 'package:soifapp/models/haircut_service.dart';
 
 class AdminManageServicesPage extends StatefulWidget {
   const AdminManageServicesPage({super.key});
@@ -15,12 +16,11 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   List<HaircutService> _services = [];
+  List<SubCategory> _subCategories = [];
   bool _isLoading = true;
   String? _errorMessage;
 
-  // États pour la sélection, similaires à SelectServicePage
-  ServiceCategory _selectedMainCategory =
-      ServiceCategory.femme; // Catégorie par défaut
+  ServiceCategory _selectedMainCategory = ServiceCategory.femme;
   String? _selectedSubCategoryName;
   final List<ServiceCategory> _displayCategories = [
     ServiceCategory.femme,
@@ -32,10 +32,10 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
   @override
   void initState() {
     super.initState();
-    _fetchServices();
+    _fetchData();
   }
 
-  Future<void> _fetchServices() async {
+  Future<void> _fetchData() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -44,52 +44,54 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
     try {
       final servicesSnapshot =
           await _firestore.collection('haircut_services').orderBy('name').get();
+      final subCategoriesSnapshot =
+          await _firestore.collection('sub_categories').get();
 
       if (mounted) {
         setState(() {
           _services = servicesSnapshot.docs
               .map((doc) => HaircutService.fromFirestore(doc))
               .toList();
+          _subCategories = subCategoriesSnapshot.docs
+              .map((doc) => SubCategory.fromFirestore(doc))
+              .toList();
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        print('Erreur fetchServices (admin): $e');
+        print('Erreur fetchData (admin manage): $e');
         setState(() {
-          _errorMessage = 'Impossible de charger les services.';
+          _errorMessage = 'Impossible de charger les données.';
           _isLoading = false;
         });
       }
     }
   }
 
-  // Helper pour l'affichage de l'image du service (similaire à SelectServicePage)
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
     if (service.imagePlaceholder.isNotEmpty) {
-      // L'URL complète est maintenant stockée directement
       final imageUrl = service.imagePlaceholder;
       return Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (BuildContext context, Widget child,
-              ImageChunkEvent? loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder:
-              (BuildContext context, Object error, StackTrace? stackTrace) {
-            print('Erreur chargement image réseau (admin): $error');
-            return _buildDefaultServiceIcon(service, context);
-          },
-        );
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (BuildContext context, Widget child,
+            ImageChunkEvent? loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder:
+            (BuildContext context, Object error, StackTrace? stackTrace) {
+          return _buildDefaultServiceIcon(service, context);
+        },
+      );
     }
     return _buildDefaultServiceIcon(service, context);
   }
@@ -97,7 +99,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
   Widget _buildDefaultServiceIcon(
       HaircutService service, BuildContext context) {
     IconData iconData;
-    Color baseColor; // Couleur de base pour l'icône et le fond
+    Color baseColor;
     final theme = Theme.of(context);
 
     switch (service.category) {
@@ -132,12 +134,10 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             : Colors.grey[600]!;
         break;
     }
-    // Le CircleAvatar précédent était redondant et non le style final visé.
-    // Le widget correct à retourner est le Container ci-dessous.
 
     return Container(
       decoration: BoxDecoration(
-        color: baseColor.withOpacity(0.20), // Fond avec opacité
+        color: baseColor.withOpacity(0.20),
       ),
       child: Center(child: Icon(iconData, color: baseColor, size: 50)),
     );
@@ -169,22 +169,17 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
 
     if (confirm != true) return;
 
-    final String? currentSubCategory = _selectedSubCategoryName;
-
     try {
-      // 1. Supprimer le document de Firestore
       await _firestore.collection('haircut_services').doc(serviceId).delete();
 
-      // 2. Supprimer l'image associée de Firebase Storage, si elle existe
       if (imageUrl.isNotEmpty) {
         try {
           await _storage.refFromURL(imageUrl).delete();
         } catch (e) {
-          // Ne pas bloquer si l'image n'existe pas ou si une erreur se produit
           print("Avertissement: L'image $imageUrl n'a pas pu être supprimée: $e");
         }
       }
-      
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -192,29 +187,16 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
             content: Text('Service "$serviceName" supprimé.'),
             backgroundColor: Colors.green),
       );
-
-      setState(() {
-        _services.removeWhere((service) => service.id == serviceId);
-        final bool isSubCategoryNowEmpty = !_services.any((s) =>
-            s.subCategory.trim().toLowerCase() ==
-            currentSubCategory?.trim().toLowerCase());
-
-        if (isSubCategoryNowEmpty) {
-          _selectedSubCategoryName = null;
-        }
-      });
+      _fetchData();
     } catch (e) {
       if (!mounted) return;
-
-      print('Erreur lors de la suppression du service: $e');
-      const errorMessage = 'Une erreur est survenue lors de la suppression.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('Une erreur est survenue: $e'),
+            backgroundColor: Colors.red),
       );
     }
   }
-
-  // --- Méthodes de construction de l'UI adaptées de SelectServicePage ---
 
   IconData _getDynamicIconForSubCategory(String? name) {
     final icons = [
@@ -238,43 +220,37 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       theme.colorScheme.primaryContainer,
       theme.colorScheme.secondaryContainer,
       theme.colorScheme.tertiaryContainer,
-      theme.colorScheme.surfaceContainerHighest, // ou surfaceVariant
+      theme.colorScheme.surfaceContainerHighest,
     ];
     if (name == null || name.isEmpty) {
-      return theme.colorScheme.surfaceBright; // ou surface
+      return theme.colorScheme.surfaceBright;
     }
     return colors[name.hashCode % colors.length];
   }
 
-  Widget _buildSubCategoryCard(
-      String subCategoryName, String? subCategoryImagePath) {
+  Widget _buildSubCategoryCard(SubCategory subCategory) {
     Widget imageWidget;
 
-    if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      final imageUrl = subCategoryImagePath;
+    if (subCategory.imageUrl != null && subCategory.imageUrl!.isNotEmpty) {
       imageWidget = Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return const Center(child: CircularProgressIndicator());
-          },
-          errorBuilder: (context, error, stackTrace) {
-            print(
-                "Erreur chargement image sous-catégorie (admin manage card): $error");
-            // Fallback à l'icône dynamique si l'image ne charge pas
-            final icon = _getDynamicIconForSubCategory(subCategoryName);
-            final color =
-                _getDynamicColorForSubCategory(subCategoryName, context);
-            return Container(
-                color: color.withOpacity(0.15),
-                child: Icon(icon, color: color, size: 50));
-          },
-        );
+        subCategory.imageUrl!,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) {
+          final icon = _getDynamicIconForSubCategory(subCategory.name);
+          final color =
+              _getDynamicColorForSubCategory(subCategory.name, context);
+          return Container(
+              color: color.withOpacity(0.15),
+              child: Icon(icon, color: color, size: 50));
+        },
+      );
     } else {
-      // Pas de chemin d'image, utiliser l'icône dynamique
-      final icon = _getDynamicIconForSubCategory(subCategoryName);
-      final color = _getDynamicColorForSubCategory(subCategoryName, context);
+      final icon = _getDynamicIconForSubCategory(subCategory.name);
+      final color = _getDynamicColorForSubCategory(subCategory.name, context);
       imageWidget = Container(
           color: color.withOpacity(0.15),
           child: Icon(icon, color: color, size: 50));
@@ -286,20 +262,19 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedSubCategoryName = subCategoryName;
+            _selectedSubCategoryName = subCategory.name;
           });
         },
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: imageWidget, // Utilise le widget image construit
+              child: imageWidget,
             ),
             Padding(
               padding: const EdgeInsets.all(10.0),
               child: Text(
-                subCategoryName,
+                subCategory.name,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
@@ -317,33 +292,11 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
   }
 
   Widget _buildSubCategorySelectionGrid() {
-    final relevantServices = _services.where((service) {
-      return service.category == _selectedMainCategory ||
-          service.category == ServiceCategory.mixte;
+    final filteredSubCategories = _subCategories.where((sc) {
+      return sc.category == _selectedMainCategory.toJson();
     }).toList();
 
-    // Crée une map pour stocker le nom de la sous-catégorie et son image (si disponible)
-    final Map<String, String?> subCategoryDetails = {};
-    for (var service in relevantServices) {
-      final subCategoryName = service.subCategory.trim();
-      if (subCategoryName.isNotEmpty) {
-        // Si la sous-catégorie n'est pas encore dans la map, ou si elle y est mais sans image,
-        // et que le service actuel a une image pour cette sous-catégorie, on l'ajoute/met à jour.
-        if (!subCategoryDetails.containsKey(subCategoryName) ||
-            (subCategoryDetails[subCategoryName] == null &&
-                service.imagePlaceholderSousCategory != null &&
-                service.imagePlaceholderSousCategory!.isNotEmpty)) {
-          subCategoryDetails[subCategoryName] =
-              service.imagePlaceholderSousCategory;
-        }
-      }
-    }
-    final List<String> displayableSubCategoryNames =
-        subCategoryDetails.keys.toList();
-    displayableSubCategoryNames
-        .sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-    if (displayableSubCategoryNames.isEmpty) {
+    if (filteredSubCategories.isEmpty) {
       return const Center(
           child: Text("Aucune sous-catégorie pour cette sélection."));
     }
@@ -356,11 +309,10 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
         mainAxisSpacing: 12.0,
         childAspectRatio: 0.9,
       ),
-      itemCount: displayableSubCategoryNames.length,
+      itemCount: filteredSubCategories.length,
       itemBuilder: (context, index) {
-        final subCategoryName = displayableSubCategoryNames[index];
-        final imagePath = subCategoryDetails[subCategoryName];
-        return _buildSubCategoryCard(subCategoryName, imagePath);
+        final subCategory = filteredSubCategories[index];
+        return _buildSubCategoryCard(subCategory);
       },
     );
   }
@@ -379,8 +331,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                   });
                 },
               )
-            : null, // Utilise le bouton retour par défaut de la navigation si non null
-        // Laisser null pour le comportement par défaut (menu hamburger ou bouton retour)
+            : null,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -388,74 +339,51 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
               ? Center(
                   child: Text(_errorMessage!,
                       style: const TextStyle(color: Colors.red)))
-              : _services.isEmpty
-                  ? const Center(child: Text('Aucun service à gérer.'))
-                  : Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12.0, horizontal: 8.0),
-                          child: ToggleButtons(
-                            borderColor: Theme.of(context).colorScheme.outline,
-                            selectedBorderColor:
-                                Theme.of(context).colorScheme.primary,
-                            selectedColor:
-                                Theme.of(context).colorScheme.onPrimary,
-                            fillColor: Theme.of(context).colorScheme.primary,
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(8.0),
-                            isSelected: _displayCategories
-                                .map((category) =>
-                                    _selectedMainCategory == category)
-                                .toList(),
-                            onPressed: (int index) {
-                              setState(() {
-                                _selectedMainCategory =
-                                    _displayCategories[index];
-                                _selectedSubCategoryName =
-                                    null; // Réinitialiser la sous-catégorie
-                              });
-                            },
-                            children: _displayCategories.map((category) {
-                              String text;
-                              switch (category) {
-                                case ServiceCategory.femme:
-                                  text = 'Femme';
-                                  break;
-                                case ServiceCategory.homme:
-                                  text = 'Homme';
-                                  break;
-                                case ServiceCategory.enfant:
-                                  text = 'Enfant';
-                                  break;
-                                case ServiceCategory.mixte:
-                                  text = 'Mixte'; // Afficher "Mixte"
-                                  break;
-                                case ServiceCategory.undefined:
-                                  text = 'Autre';
-                                  break;
-                              }
-                              return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16.0),
-                                  child: Text(text));
-                            }).toList(),
-                          ),
-                        ),
-                        Expanded(
-                          child: _selectedSubCategoryName == null
-                              ? _buildSubCategorySelectionGrid()
-                              : _buildServiceListForDeletion(),
-                        ),
-                      ],
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12.0, horizontal: 8.0),
+                      child: ToggleButtons(
+                        borderColor: Theme.of(context).colorScheme.outline,
+                        selectedBorderColor:
+                            Theme.of(context).colorScheme.primary,
+                        selectedColor:
+                            Theme.of(context).colorScheme.onPrimary,
+                        fillColor: Theme.of(context).colorScheme.primary,
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(8.0),
+                        isSelected: _displayCategories
+                            .map((category) =>
+                                _selectedMainCategory == category)
+                            .toList(),
+                        onPressed: (int index) {
+                          setState(() {
+                            _selectedMainCategory =
+                                _displayCategories[index];
+                            _selectedSubCategoryName = null;
+                          });
+                        },
+                        children: _displayCategories.map((category) {
+                          return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0),
+                              child: Text(category.toJson()[0].toUpperCase() + category.toJson().substring(1)));
+                        }).toList(),
+                      ),
                     ),
+                    Expanded(
+                      child: _selectedSubCategoryName == null
+                          ? _buildSubCategorySelectionGrid()
+                          : _buildServiceListForDeletion(),
+                    ),
+                  ],
+                ),
     );
   }
 
   Widget _buildServiceListForDeletion() {
     final List<HaircutService> servicesToList = _services.where((service) {
-      // Filtre pour ne pas afficher les services "placeholder" de sous-catégorie
-      // qui sont utilisés uniquement pour stocker les métadonnées de la sous-catégorie.
       if (service.name.startsWith('[SOUS-CATÉGORIE]')) {
         return false;
       }
@@ -463,8 +391,7 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
       bool subCategoryMatch = service.subCategory.trim().toLowerCase() ==
           _selectedSubCategoryName?.trim().toLowerCase();
       if (!subCategoryMatch) return false;
-      bool categoryMatch = service.category == _selectedMainCategory ||
-          service.category == ServiceCategory.mixte;
+      bool categoryMatch = service.category == _selectedMainCategory;
       return categoryMatch;
     }).toList();
 
@@ -474,15 +401,14 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchServices, // Permet de rafraîchir la liste complète
+      onRefresh: _fetchData,
       child: GridView.builder(
         padding: const EdgeInsets.all(12.0),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // Nombre de colonnes
+          crossAxisCount: 2,
           crossAxisSpacing: 12.0,
           mainAxisSpacing: 12.0,
-          childAspectRatio:
-              0.75, // Ajusté pour plus de contenu (image, textes, bouton)
+          childAspectRatio: 0.75,
         ),
         itemCount: servicesToList.length,
         itemBuilder: (context, index) {
@@ -493,23 +419,14 @@ class _AdminManageServicesPageState extends State<AdminManageServicesPage> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             clipBehavior: Clip.antiAlias,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: Container(
-                    // Ce container assure que _buildServiceImage remplit l'espace.
-                    // Si _buildServiceImage retourne un widget qui ne s'étend pas,
-                    // ce Container peut aider avec alignment ou un fond.
-                    // color: Colors.grey[200], // Placeholder background if needed
-                    child: _buildServiceImage(service, context),
-                  ),
+                  child: _buildServiceImage(service, context),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         service.name,

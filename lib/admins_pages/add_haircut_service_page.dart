@@ -44,25 +44,22 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
       _isLoadingSubCategories = true;
     });
     try {
-      // Récupérer à la fois la catégorie et la sous-catégorie
-      final servicesSnapshot = await _firestore
-          .collection('haircut_services')
-          .get();
+      // NOUVELLE LOGIQUE: Récupérer depuis la collection 'sub_categories'
+      final subCategoriesSnapshot =
+          await _firestore.collection('sub_categories').get();
 
       if (!mounted) return;
 
-      // Utiliser une map pour grouper les sous-catégories par catégorie
       final Map<String, Set<String>> subCategoriesMap = {};
-      for (var doc in servicesSnapshot.docs) {
+      for (var doc in subCategoriesSnapshot.docs) {
         final item = doc.data();
         final category = item['category'] as String?;
-        final subCategory = item['sub_category'] as String?;
+        final subCategoryName = item['name'] as String?;
         if (category != null &&
             category.trim().isNotEmpty &&
-            subCategory != null &&
-            subCategory.trim().isNotEmpty) {
-          // Initialiser l'ensemble si la catégorie est nouvelle
-          (subCategoriesMap[category.trim()] ??= {}).add(subCategory.trim());
+            subCategoryName != null &&
+            subCategoryName.trim().isNotEmpty) {
+          (subCategoriesMap[category.trim()] ??= {}).add(subCategoryName.trim());
         }
       }
       final Map<String, List<String>> finalMap = {};
@@ -83,8 +80,7 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
           backgroundColor: Colors.red,
         ));
         setState(() {
-          _isLoadingSubCategories =
-              false; // Permet de continuer même en cas d'erreur
+          _isLoadingSubCategories = false;
         });
       }
     }
@@ -116,7 +112,6 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
             _AddSubCategoryView(
               existingSubCategories: _allSubCategories,
               onSubCategoryAdded: () {
-                // Rafraîchit la liste des sous-catégories pour le premier onglet
                 _fetchExistingSubCategories();
               },
             ),
@@ -154,7 +149,6 @@ class _AddServiceView extends StatefulWidget {
 
 class _AddServiceViewState extends State<_AddServiceView> {
   final _formKey = GlobalKey<FormState>();
-  final _idController = TextEditingController();
   final _nameController = TextEditingController();
   final _durationController = TextEditingController();
   final _priceController = TextEditingController();
@@ -170,17 +164,9 @@ class _AddServiceViewState extends State<_AddServiceView> {
   bool _isLoading = false;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final Uuid _uuid = const Uuid();
-
-  @override
-  void initState() {
-    super.initState();
-    _idController.text = _uuid.v4();
-  }
 
   @override
   void dispose() {
-    _idController.dispose();
     _nameController.dispose();
     _durationController.dispose();
     _priceController.dispose();
@@ -194,30 +180,23 @@ class _AddServiceViewState extends State<_AddServiceView> {
 
     setState(() => _isLoading = true);
 
-    String? serviceImageUrlForDb;
-    final String serviceId = _idController.text.trim();
-
     try {
-      // Étape 1: Récupérer l'image de la sous-catégorie depuis le service "placeholder"
+      // NOUVELLE LOGIQUE: Récupérer l'URL de l'image depuis la collection 'sub_categories'
       String? subCategoryImageUrl;
-      try {
-        final placeholderQuery = await _firestore
-            .collection('haircut_services')
-            .where('sub_category', isEqualTo: _selectedSubCategory!)
-            .where('name', isEqualTo: '[SOUS-CATÉGORIE] $_selectedSubCategory')
-            .where('category', isEqualTo: _selectedCategory!)
-            .limit(1)
-            .get();
+      final subCategoryQuery = await _firestore
+          .collection('sub_categories')
+          .where('name', isEqualTo: _selectedSubCategory!)
+          .where('category', isEqualTo: _selectedCategory!)
+          .limit(1)
+          .get();
 
-        if (placeholderQuery.docs.isNotEmpty) {
-          subCategoryImageUrl = placeholderQuery.docs.first
-              .data()['image_placeholder_sous_category'] as String?;
-        }
-      } catch (e) {
-        print("Info: n'a pas trouvé d'image pour la sous-catégorie: $e");
+      if (subCategoryQuery.docs.isNotEmpty) {
+        subCategoryImageUrl =
+            subCategoryQuery.docs.first.data()['image_url'] as String?;
       }
 
       // Upload de l'image du service si sélectionnée
+      String? serviceImageUrlForDb;
       if (_selectedServiceImageFile != null) {
         final String fileExtension =
             _selectedServiceImageFile!.path.split('.').last.toLowerCase();
@@ -233,33 +212,13 @@ class _AddServiceViewState extends State<_AddServiceView> {
         'price': double.parse(_priceController.text.trim()),
         'sub_category': _selectedSubCategory!,
         'category': _selectedCategory!,
-        'image_placeholder': serviceImageUrlForDb,
+        'image_placeholder': serviceImageUrlForDb ?? '',
         'image_placeholder_sous_category': subCategoryImageUrl,
         'created_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       };
 
-      await _firestore.collection('haircut_services').doc(serviceId).set(serviceData);
-
-      // Étape 3: On supprime le service "placeholder"
-      // On ne traite pas l'erreur, car il est possible qu'il ait déjà été supprimé.
-      try {
-        final placeholderQuery = await _firestore
-            .collection('haircut_services')
-            .where('sub_category', isEqualTo: _selectedSubCategory!)
-            .where('name', isEqualTo: '[SOUS-CATÉGORIE] $_selectedSubCategory')
-            .where('category', isEqualTo: _selectedCategory!)
-            .limit(1)
-            .get();
-
-        if (placeholderQuery.docs.isNotEmpty) {
-          await placeholderQuery.docs.first.reference.delete();
-        }
-      } catch (e) {
-        // Log pour le débogage, mais pas d'erreur montrée à l'utilisateur.
-        print(
-            "Info: Le service placeholder n'a pas été supprimé (normal s'il n'existait plus): $e");
-      }
+      await _firestore.collection('haircut_services').add(serviceData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -308,18 +267,10 @@ class _AddServiceViewState extends State<_AddServiceView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               TextFormField(
-                controller: _idController,
-                readOnly: true,
-                decoration: _buildInputDecoration(
-                    context: context, label: 'ID du Service (automatique)'),
-                style: TextStyle(color: theme.colorScheme.onSurface),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
                 controller: _nameController,
                 decoration: _buildInputDecoration(
                     context: context,
-                    label: 'Nom du Service*',
+                    label: 'Nom du Service*', 
                     prefixIcon: Icons.cut),
                 validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Veuillez entrer le nom du service.'
@@ -374,7 +325,7 @@ class _AddServiceViewState extends State<_AddServiceView> {
                 value: _selectedCategory,
                 decoration: _buildInputDecoration(
                   context: context,
-                  label: 'Catégorie*',
+                  label: 'Catégorie*', 
                   prefixIcon: Icons.category_outlined,
                 ),
                 hint: const Text('Sélectionnez une catégorie'),
@@ -388,7 +339,6 @@ class _AddServiceViewState extends State<_AddServiceView> {
                 onChanged: (String? newValue) {
                   setState(() {
                     _selectedCategory = newValue;
-                    // Réinitialiser la sous-catégorie lorsque la catégorie change
                     _selectedSubCategory = null;
                     if (newValue != null &&
                         widget.subCategoriesByCategory.containsKey(newValue)) {
@@ -411,7 +361,7 @@ class _AddServiceViewState extends State<_AddServiceView> {
                   value: _selectedSubCategory,
                   decoration: _buildInputDecoration(
                     context: context,
-                    label: 'Sous-catégorie*',
+                    label: 'Sous-catégorie*', 
                     prefixIcon: Icons.list_alt,
                   ),
                   hint: Text(_selectedCategory == null
@@ -485,9 +435,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
   bool _isLoading = false;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final Uuid _uuid = const Uuid();
 
-  // Ajout pour la sélection de la catégorie parente
   final List<String> _categories = ['homme', 'femme', 'enfant', 'mixte'];
   String? _selectedCategoryForSubCategory;
 
@@ -517,7 +465,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
     final String newName = _subCategoryNameController.text.trim();
 
     try {
-      // 1. Upload de l'image de la sous-catégorie
+      // NOUVELLE LOGIQUE: Créer un document dans la collection 'sub_categories'
       final String fileExtension =
           _selectedSubCategoryImageFile!.path.split('.').last.toLowerCase();
       final String fileName = '${const Uuid().v4()}.$fileExtension';
@@ -525,25 +473,14 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
       await ref.putFile(_selectedSubCategoryImageFile!);
       final subCategoryImageUrlForDb = await ref.getDownloadURL();
 
-      // 2. Création d'un service "placeholder" pour stocker la sous-catégorie
-      final String placeholderId = _uuid.v4();
-      final placeholderServiceData = {
-        'name': '[SOUS-CATÉGORIE] $newName',
-        'duration_minutes': 0,
-        'price': 0.0,
-        'sub_category': newName,
+      final subCategoryData = {
+        'name': newName,
         'category': _selectedCategoryForSubCategory!,
-        'image_placeholder_sous_category': subCategoryImageUrlForDb,
-        'image_placeholder':
-            null, // Le placeholder n'a pas d'image de service propre
+        'image_url': subCategoryImageUrlForDb,
         'created_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
       };
 
-      await _firestore
-          .collection('haircut_services')
-          .doc(placeholderId)
-          .set(placeholderServiceData);
+      await _firestore.collection('sub_categories').add(subCategoryData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -556,8 +493,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
           _selectedSubCategoryImageFile = null;
           _selectedCategoryForSubCategory = null;
         });
-        widget
-            .onSubCategoryAdded(); // Notifie le parent pour rafraîchir la liste
+        widget.onSubCategoryAdded();
       }
     } catch (e) {
       if (mounted) {
@@ -613,7 +549,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
               value: _selectedCategoryForSubCategory,
               decoration: _buildInputDecoration(
                 context: context,
-                label: 'Associer à la catégorie*',
+                label: 'Associer à la catégorie*', 
                 prefixIcon: Icons.category_outlined,
               ),
               hint: const Text('Sélectionnez une catégorie'),
@@ -638,7 +574,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
               controller: _subCategoryNameController,
               decoration: _buildInputDecoration(
                 context: context,
-                label: 'Nom de la nouvelle sous-catégorie*',
+                label: 'Nom de la nouvelle sous-catégorie*', 
                 prefixIcon: Icons.create_new_folder_outlined,
               ),
               validator: (value) {
@@ -686,7 +622,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
 
 // --- Widgets et Méthodes Utilitaires ---
 
-InputDecoration _buildInputDecoration({
+InputDecoration _buildInputDecoration ({
   required BuildContext context,
   required String label,
   String? hint,
@@ -703,7 +639,7 @@ InputDecoration _buildInputDecoration({
   );
 }
 
-Widget _buildImagePicker({
+Widget _buildImagePicker ({
   required BuildContext context,
   required File? selectedFile,
   required VoidCallback onPressed,
