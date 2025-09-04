@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:soifapp/models/haircut_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -34,33 +35,24 @@ class _SelectServicePageState extends State<SelectServicePage> {
     }
   }
 
-  // Helper pour afficher l'image du service ou une icône par défaut
   Widget _buildServiceImage(HaircutService service, BuildContext context) {
     final theme = Theme.of(context);
 
     if (service.imagePlaceholder.isNotEmpty) {
-      // L'URL complète est maintenant stockée dans le champ imagePlaceholder
       final imageUrl = service.imagePlaceholder;
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8.0),
-        child: Image.network(
-          imageUrl,
-          width: 80,
-          height: 80,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Container(
-                width: 80,
-                height: 80,
-                alignment: Alignment.center,
-                child: const CircularProgressIndicator(strokeWidth: 2.0));
-          },
-          errorBuilder: (context, error, stackTrace) {
-            // Gérer l'erreur de chargement, par exemple avec un logger
-            return _buildDefaultServiceIcon(service, theme);
-          },
+      return CachedNetworkImage(
+        imageUrl: imageUrl,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: const Center(
+              child: CircularProgressIndicator(
+            strokeWidth: 2.0,
+          )),
         ),
+        errorWidget: (context, url, error) {
+          return _buildDefaultServiceIcon(service, theme);
+        },
       );
     }
     return _buildDefaultServiceIcon(service, theme);
@@ -73,48 +65,37 @@ class _SelectServicePageState extends State<SelectServicePage> {
     switch (service.category) {
       case ServiceCategory.femme:
         iconData = Icons.female_rounded;
-        baseColor = theme.brightness == Brightness.light
-            ? Colors.pink[200]!
-            : Colors.pink[700]!;
+        baseColor = Colors.pink[300]!;
         break;
       case ServiceCategory.homme:
         iconData = Icons.male_rounded;
-        baseColor = theme.brightness == Brightness.light
-            ? Colors.blue[200]!
-            : Colors.blue[700]!;
+        baseColor = Colors.blue[300]!;
         break;
       case ServiceCategory.enfant:
         iconData = Icons.child_care_rounded;
-        baseColor = theme.brightness == Brightness.light
-            ? Colors.green[200]!
-            : Colors.green[700]!;
+        baseColor = Colors.green[300]!;
         break;
       case ServiceCategory.mixte:
       case ServiceCategory.undefined:
         iconData = Icons.spa_rounded;
-        baseColor = theme.brightness == Brightness.light
-            ? Colors.purple[200]!
-            : Colors.purple[700]!;
+        baseColor = Colors.purple[300]!;
         break;
     }
     return Container(
-        // width and height are removed to allow Expanded to control sizing
-        decoration: BoxDecoration(
-            color: baseColor.withOpacity(0.15)), // Consistent opacity
+        decoration: BoxDecoration(color: baseColor.withOpacity(0.15)),
         child: Center(
             child: Icon(iconData,
                 color: baseColor,
-                size: 50))); // Consistent icon size and centering
+                size: 50)));
   }
 
   final List<ServiceCategory> _displayCategories = [
     ServiceCategory.femme,
     ServiceCategory.homme,
     ServiceCategory.enfant,
-    ServiceCategory.mixte, // Ajouter Mixte ici
+    ServiceCategory.mixte,
   ];
 
-  // Fonctions pour générer des icônes et couleurs dynamiques pour les sous-catégories
   IconData _getDynamicIconForSubCategory(String? name) {
     final icons = [
       Icons.style_outlined,
@@ -131,54 +112,37 @@ class _SelectServicePageState extends State<SelectServicePage> {
     return icons[name.hashCode % icons.length];
   }
 
-  Color _getDynamicColorForSubCategory(String? name, BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = [
-      theme.colorScheme.primaryContainer,
-      theme.colorScheme.secondaryContainer,
-      theme.colorScheme.tertiaryContainer,
-      theme.colorScheme.surfaceContainerHighest,
-    ];
-    if (name == null || name.isEmpty) return theme.colorScheme.surfaceBright;
-    return colors[name.hashCode % colors.length];
-  }
-
   Widget _buildSubCategoryCard(
       String subCategoryName, String? subCategoryImagePath) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     Widget imageWidget;
 
     if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
-      // L'URL complète est maintenant stockée dans le champ
-      final imageUrl = subCategoryImagePath;
-      imageWidget = Image.network(
-        imageUrl,
+      imageWidget = CachedNetworkImage(
+        imageUrl: subCategoryImagePath,
         fit: BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return const Center(child: CircularProgressIndicator());
-        },
-        errorBuilder: (context, error, stackTrace) {
-          // Gérer l'erreur de chargement, par exemple avec un logger
-          // Fallback à l'icône dynamique si l'image ne charge pas
+        placeholder: (context, url) => Container(
+          color: colorScheme.surfaceContainerHighest,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+        ),
+        errorWidget: (context, url, error) {
           final icon = _getDynamicIconForSubCategory(subCategoryName);
-          final color =
-              _getDynamicColorForSubCategory(subCategoryName, context);
           return Container(
-              color: color.withOpacity(0.15),
-              child: Icon(icon, color: color, size: 50));
+              color: colorScheme.surfaceContainer,
+              child: Icon(icon, color: colorScheme.primary, size: 50));
         },
       );
     } else {
-      // Pas de chemin d'image, utiliser l'icône dynamique
       final icon = _getDynamicIconForSubCategory(subCategoryName);
-      final color = _getDynamicColorForSubCategory(subCategoryName, context);
       imageWidget = Container(
-          color: color.withOpacity(0.15),
-          child: Icon(icon, color: color, size: 50));
+          color: colorScheme.surfaceContainer,
+          child: Icon(icon, color: colorScheme.primary, size: 50));
     }
 
-    final card = Card(
-      elevation: 3,
+    return Card(
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -187,51 +151,39 @@ class _SelectServicePageState extends State<SelectServicePage> {
             _selectedSubCategoryName = subCategoryName;
           });
         },
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: imageWidget, // Utilise le widget image construit
+        child: GridTile(
+          footer: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.5),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
             ),
-            Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: Text(
-                subCategoryName, // Afficher le nom de la sous-catégorie
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary, // Utilisation du thème
-                  fontSize: 15,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            child: Text(
+              subCategoryName,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
+          ),
+          child: imageWidget,
         ),
       ),
-    );
-
-    // Appliquer une animation de fondu à l'apparition de la carte
-    return card.animate().fadeIn(duration: 200.ms, curve: Curves.easeIn);
+    ).animate().fadeIn(duration: 200.ms, curve: Curves.easeIn);
   }
 
   Widget _buildSubCategorySelection({Key? key}) {
-    // 1. Filtrer les services pour la catégorie principale sélectionnée
     final relevantServices = _currentServices.where((service) {
       return service.category == _selectedMainCategory;
     }).toList();
 
-    // Crée une map pour stocker le nom de la sous-catégorie et son image (si disponible)
     final Map<String, String?> subCategoryDetails = {};
     for (var service in relevantServices) {
       final subCategoryName = service.subCategory.trim();
       if (subCategoryName.isNotEmpty) {
-        // Si la sous-catégorie n'est pas encore dans la map, ou si elle y est mais sans image,
-        // et que le service actuel a une image pour cette sous-catégorie, on l'ajoute/met à jour.
         if (!subCategoryDetails.containsKey(subCategoryName) ||
             (subCategoryDetails[subCategoryName] == null &&
                 service.imagePlaceholderSousCategory != null &&
@@ -248,14 +200,20 @@ class _SelectServicePageState extends State<SelectServicePage> {
     displayableSubCategoryNames
         .sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
+    if (displayableSubCategoryNames.isEmpty) {
+      return const Center(
+        child: Text("Aucune prestation disponible dans cette catégorie."),
+      );
+    }
+
     return GridView.builder(
-      key: key, // Clé pour AnimatedSwitcher
-      padding: const EdgeInsets.all(12.0),
+      key: key,
+      padding: const EdgeInsets.all(16.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 12.0,
-        mainAxisSpacing: 12.0,
-        childAspectRatio: 0.9, // Ajustez pour la proportion des cartes
+        crossAxisSpacing: 16.0,
+        mainAxisSpacing: 16.0,
+        childAspectRatio: 1.0,
       ),
       itemCount: displayableSubCategoryNames.length,
       itemBuilder: (context, index) {
@@ -268,9 +226,12 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedSubCategoryName ?? 'Choisissez un Service'),
+        title: Text(_selectedSubCategoryName ?? 'Choisir une Prestation'),
         leading: _selectedSubCategoryName != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new),
@@ -280,53 +241,70 @@ class _SelectServicePageState extends State<SelectServicePage> {
                   });
                 },
               )
-            : null, // Utilise le bouton retour par défaut de la navigation
+            : null,
       ),
       body: RefreshIndicator(
         onRefresh: _handleRefresh,
         child: Column(
           children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-              child: ToggleButtons(
-                borderColor: Theme.of(context).colorScheme.outline,
-                selectedBorderColor: Theme.of(context).colorScheme.primary,
-                selectedColor: Theme.of(context).colorScheme.onPrimary,
-                fillColor: Theme.of(context).colorScheme.primary,
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(8.0),
-                isSelected: _displayCategories
-                    .map((category) => _selectedMainCategory == category)
-                    .toList(),
-                onPressed: (int index) {
-                  setState(() {
-                    _selectedMainCategory = _displayCategories[index];
-                    _selectedSubCategoryName =
-                        null; // Réinitialiser la sous-catégorie
-                  });
-                },
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              color: colorScheme.surfaceContainer,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: _displayCategories.map((category) {
+                  final isSelected = _selectedMainCategory == category;
+                  IconData icon;
                   String text;
                   switch (category) {
                     case ServiceCategory.femme:
+                      icon = Icons.female_rounded;
                       text = 'Femme';
                       break;
                     case ServiceCategory.homme:
+                      icon = Icons.male_rounded;
                       text = 'Homme';
                       break;
                     case ServiceCategory.enfant:
+                      icon = Icons.child_care_rounded;
                       text = 'Enfant';
                       break;
                     case ServiceCategory.mixte:
-                      text = 'Mixte'; // Afficher "Mixte"
+                      icon = Icons.spa_rounded;
+                      text = 'Mixte';
                       break;
                     case ServiceCategory.undefined:
-                      text = 'Autre'; // Ne devrait pas être affiché
+                      icon = Icons.help_outline;
+                      text = 'Autre';
                   }
-                  return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text(text));
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedMainCategory = category;
+                        _selectedSubCategoryName = null;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 8.0),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Text(text,
+                          style: TextStyle(
+                              color: isSelected
+                                  ? colorScheme.onPrimary
+                                  : colorScheme.onSurfaceVariant,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal)),
+                    ),
+                  );
                 }).toList(),
               ),
             ),
@@ -339,10 +317,9 @@ class _SelectServicePageState extends State<SelectServicePage> {
                     child: child,
                   );
                 },
-                // La clé du widget enfant détermine quand l'animation se déclenche.
                 child: _selectedSubCategoryName == null
                     ? _buildSubCategorySelection(
-                        key: const ValueKey('sub-category-grid'))
+                        key: ValueKey(_selectedMainCategory.toString()))
                     : _buildServiceListForSubCategory(
                         key: ValueKey(_selectedSubCategoryName)),
               ),
@@ -356,40 +333,29 @@ class _SelectServicePageState extends State<SelectServicePage> {
   Widget _buildServiceListForSubCategory({Key? key}) {
     final List<HaircutService> servicesToList =
         _currentServices.where((service) {
-      // Comparaison insensible à la casse et aux espaces pour la sous-catégorie
       bool subCategoryMatch = service.subCategory.trim().toLowerCase() ==
           _selectedSubCategoryName?.trim().toLowerCase();
 
       if (!subCategoryMatch) return false;
 
-      // Le service doit appartenir à la catégorie principale sélectionnée
       bool categoryMatch = service.category == _selectedMainCategory;
       return categoryMatch;
     }).toList();
 
     if (servicesToList.isEmpty) {
-      return Center(
-          child: Text('Aucun service pour cette sous-catégorie.',
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 16)));
+      return const Center(
+          child: Text('Aucun service pour cette sous-catégorie.'));
     }
 
-    return GridView.builder(
-      key: key, // Clé pour AnimatedSwitcher
-      padding: const EdgeInsets.all(8.0),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, // Nombre de colonnes
-        crossAxisSpacing: 8.0,
-        mainAxisSpacing: 8.0,
-        childAspectRatio:
-            0.9, // Match sub-category card aspect ratio for consistency
-      ),
+    return ListView.builder(
+      key: key,
+      padding: const EdgeInsets.all(16.0),
       itemCount: servicesToList.length,
       itemBuilder: (context, index) {
         final service = servicesToList[index];
         return Card(
           elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 8.0),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           clipBehavior: Clip.antiAlias,
@@ -397,57 +363,49 @@ class _SelectServicePageState extends State<SelectServicePage> {
             onTap: () {
               Navigator.pop(context, service);
             },
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                Expanded(
-                  // For the image or icon
-                  child: _buildServiceImage(
-                      service, context), // Affiche l'image ou l'icône
+                SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: _buildServiceImage(service, context),
                 ),
-                Padding(
-                  // For the text content, similar to sub-category card
-                  padding: const EdgeInsets.all(10.0), // Consistent padding
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment
-                        .center, // Center content vertically in padding
-                    crossAxisAlignment: CrossAxisAlignment
-                        .center, // Center content horizontally
-                    children: [
-                      Text(
-                        // Price and Duration first
-                        '${service.price.toStringAsFixed(2)} € - ${service.duration.inMinutes} min',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .secondary, // Style as secondary info
-                          fontSize: 12,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          service.name,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1, // Prefer single line for this info
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4), // Spacer
-                      Text(
-                        // Service Name
-                        service.name,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                          fontSize: 15, // Match sub-category name font size
+                        const SizedBox(height: 8),
+                        Text(
+                          '${service.price.toStringAsFixed(2)} € - ${service.duration.inMinutes} min',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.secondary,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
+                const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                const SizedBox(width: 16),
               ],
             ),
           ),
-        );
+        ).animate().fadeIn(delay: (100 * index).ms).slideX(begin: 0.2);
       },
     );
   }

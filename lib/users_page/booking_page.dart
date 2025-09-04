@@ -489,46 +489,49 @@ class _BookingPageState extends State<BookingPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(3.0),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 2.5)
-                          : Border.all(color: Colors.transparent, width: 2.5),
-                    ),
-                    child: coiffeur.photoUrl != null &&
-                            coiffeur.photoUrl!.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: coiffeur.photoUrl!,
-                            imageBuilder: (context, imageProvider) =>
-                                CircleAvatar(
-                              radius: 35,
-                              backgroundImage: imageProvider,
-                            ),
-                            placeholder: (context, url) => const CircleAvatar(
-                              radius: 35, // Maintenir la taille
-                              backgroundColor: Colors.grey, // Couleur de fond
-                              child: SpinKitFadingCircle(
-                                color: Colors.white,
-                                size: 30.0,
+                  Hero(
+                    tag: 'coiffeur-photo-${coiffeur.id}',
+                    child: Container(
+                      padding: const EdgeInsets.all(3.0),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 2.5)
+                            : Border.all(color: Colors.transparent, width: 2.5),
+                      ),
+                      child: coiffeur.photoUrl != null &&
+                              coiffeur.photoUrl!.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: coiffeur.photoUrl!,
+                              imageBuilder: (context, imageProvider) =>
+                                  CircleAvatar(
+                                radius: 35,
+                                backgroundImage: imageProvider,
                               ),
-                            ),
-                            errorWidget: (context, url, error) => CircleAvatar(
+                              placeholder: (context, url) => const CircleAvatar(
+                                radius: 35, // Maintenir la taille
+                                backgroundColor: Colors.grey, // Couleur de fond
+                                child: SpinKitFadingCircle(
+                                  color: Colors.white,
+                                  size: 30.0,
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => CircleAvatar(
+                                radius: 35,
+                                backgroundColor: coiffeur.color.withOpacity(0.8),
+                                child: Icon(coiffeur.icon,
+                                    size: 30, color: Colors.white),
+                              ),
+                            )
+                          : CircleAvatar(
                               radius: 35,
                               backgroundColor: coiffeur.color.withOpacity(0.8),
                               child: Icon(coiffeur.icon,
                                   size: 30, color: Colors.white),
                             ),
-                          )
-                        : CircleAvatar(
-                            radius: 35,
-                            backgroundColor: coiffeur.color.withOpacity(0.8),
-                            child: Icon(coiffeur.icon,
-                                size: 30, color: Colors.white),
-                          ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -586,139 +589,82 @@ class _BookingPageState extends State<BookingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Réservation'),
-        // Les couleurs de l'AppBar sont maintenant gérées par AppBarTheme dans main.dart
-        actions: [
-          const LogoutButton(), // Utilisation du widget refactorisé
+        title: const Text('Nouvelle Réservation'),
+        actions: const [
+          LogoutButton(),
         ],
-        // Si vous voulez un bouton de retour standard qui n'est pas lié à la déconnexion,
-        // Flutter l'ajoute automatiquement si BookingPage n'est pas la première route.
-        // Pour un contrôle explicite, vous pouvez utiliser `leading: BackButton(),`
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(
-            15.0), // Ajout de padding pour éviter que le contenu ne touche les bords
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Sélecteur de date
-            DateSelector(
-                    selectedDate: _selectedDate,
-                    onDateSelected: (date) {
-                      setState(() {
-                        _selectedDate = date;
-                        _selectedCreneau = null;
-                      });
-                      _fetchAvailableSlots();
-                    },
-                    onPickDateTap: _pickDate,
-                  )
-                  .animate()
-                  .fadeIn(duration: 500.ms)
-                  .slideY(begin: 0.2, curve: Curves.easeInOut),
-            const SizedBox(height: 30),
-
-            // Choix du service
-            if (_isLoadingServices)
-              const Center(child: CircularProgressIndicator())
-            else if (_servicesError != null)
-              Center(
-                  child: Text(_servicesError!,
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.error)))
-            else if (_allServices.isEmpty)
-              _buildInfoMessage('Aucun service disponible pour le moment.')
-            else ...[
-              ServiceSelector(
-                selectedService: _selectedService,
-                onTap: _navigateToSelectServicePage,
-              ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.2),
-            ],
-            const SizedBox(height: 30),
-
-            // Choix du coiffeur
+            _buildSectionCard(
+              context: context,
+              step: '1',
+              title: 'Choisissez une date',
+              content: DateSelector(
+                selectedDate: _selectedDate,
+                onDateSelected: (date) {
+                  setState(() {
+                    _selectedDate = date;
+                    _selectedCreneau = null;
+                  });
+                  _fetchAvailableSlots();
+                },
+                onPickDateTap: _pickDate,
+              ),
+            ),
+            _buildSectionCard(
+              context: context,
+              step: '2',
+              title: 'Choisissez une prestation',
+              content: _isLoadingServices
+                  ? const Center(child: CircularProgressIndicator())
+                  : _servicesError != null
+                      ? Center(
+                          child: Text(_servicesError!,
+                              style: TextStyle(color: colorScheme.error)))
+                      : ServiceSelector(
+                          selectedService: _selectedService,
+                          onTap: _navigateToSelectServicePage,
+                        ),
+            ),
             if (_selectedDate != null && _selectedService != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('3. Choisissez votre coiffeur/coiffeuse :',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary)),
-                  const SizedBox(height: 15),
-                  _buildCoiffeurSelector(),
-                  const SizedBox(height: 30),
-                ],
-              ).animate().fadeIn(duration: 400.ms)
-            else if (_selectedDate != null && _selectedService == null)
-              _buildInfoMessage('Veuillez d\'abord choisir un service.'),
-
-            // Affichage des créneaux (seulement si date et coiffeur sont choisis)
+              _buildSectionCard(
+                context: context,
+                step: '3',
+                title: 'Choisissez un coiffeur',
+                content: _buildCoiffeurSelector(),
+              ).animate().fadeIn(duration: 400.ms),
             if (_selectedDate != null &&
                 _selectedService != null &&
-                _selectedCoiffeurId != null) ...[
-              Text(
-                  '4. Choisissez un créneau pour ${_selectedService!.name} avec ${_coiffeurs.firstWhere((c) => c.id == _selectedCoiffeurId).name} le ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year} :',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary)),
-              const SizedBox(height: 10),
-              Center(
-                child: SlotSelector(
-                  availableSlots: _dynamicAvailableSlots,
-                  selectedSlot: _selectedCreneau,
-                  onSlotSelected: (slot) {
-                    setState(() {
-                      _selectedCreneau = slot;
-                    });
-                  },
-                  selectedService: _selectedService,
-                  isLoading: _isLoadingSlots,
-                  error: _slotsError,
-                ),
-              ),
-              const SizedBox(height: 40),
-              Center(
-                child: ElevatedButton.icon(
-                  icon: const Icon(
-                    Icons.check_circle_outline, /*color: Colors.white*/
-                  ), // La couleur de l'icône sera gérée par le thème du bouton
-                  label: const Text(
-                    'Confirmer la réservation', /*style: TextStyle(color: Colors.white)*/
-                  ), // La couleur du texte aussi
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _selectedCreneau != null
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 15),
-                    textStyle: const TextStyle(fontSize: 18),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0)),
+                _selectedCoiffeurId != null)
+              _buildSectionCard(
+                context: context,
+                step: '4',
+                title: 'Choisissez un créneau',
+                content: Center(
+                  child: SlotSelector(
+                    availableSlots: _dynamicAvailableSlots,
+                    selectedSlot: _selectedCreneau,
+                    onSlotSelected: (slot) {
+                      setState(() {
+                        _selectedCreneau = slot;
+                      });
+                    },
+                    selectedService: _selectedService,
+                    isLoading: _isLoadingSlots,
+                    error: _slotsError,
                   ),
-                  onPressed: _selectedCreneau != null
-                      ? _confirmBooking // Appel de la méthode de confirmation
-                      : null,
-                ).animate(target: _selectedCreneau != null ? 1.0 : 0.0).scaleXY(
-                        begin: 0.95,
-                        end: 1.0,
-                        duration: 250.ms,
-                        curve: Curves.easeOut),
-              ),
-            ].animate().fadeIn(duration: 400.ms)
-            else if (_selectedDate != null &&
-                _selectedService != null &&
-                _selectedCoiffeurId == null)
-              _buildInfoMessage(
-                  'Veuillez choisir un coiffeur pour voir les créneaux.'),
-
-            // Message initial si rien n'est encore sélectionné (ou seulement la date)
-            if (_selectedDate == null)
-              _buildInfoMessage('Veuillez d\'abord sélectionner une date.'),
+                ),
+              ).animate().fadeIn(duration: 400.ms),
+            const SizedBox(height: 80), // Espace pour le bouton
           ],
         ),
       ),
@@ -726,23 +672,63 @@ class _BookingPageState extends State<BookingPage> {
         currentIndex: _currentIndex,
         onTap: _onNavBarTap,
       ),
+      floatingActionButton: _selectedCreneau != null
+          ? FloatingActionButton.extended(
+              onPressed: _confirmBooking,
+              label: const Text('Confirmer la réservation'),
+              icon: const Icon(Icons.check_circle_outline),
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ).animate().scale(duration: 300.ms, curve: Curves.easeOut)
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
-  Widget _buildInfoMessage(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
-              fontStyle: FontStyle.italic,
-              fontSize: 16),
-        ).animate().fadeIn(duration: 300.ms),
+  Widget _buildSectionCard({
+    required BuildContext context,
+    required String step,
+    required String title,
+    required Widget content,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      color: colorScheme.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
       ),
-    );
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  radius: 14,
+                  child: Text(step,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            content,
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.2);
   }
 
   Future<void> _confirmBooking() async {
@@ -763,14 +749,8 @@ class _BookingPageState extends State<BookingPage> {
             content: Text(
                 'Erreur de configuration du fuseau horaire. Réservation annulée.')),
       );
-      setState(() {
-        // Optionnel: Arrêter l'indicateur de chargement si vous en utilisez un ici
-      });
       return;
     }
-    setState(() {
-      // Optionnel: Mettre un indicateur de chargement sur le bouton ou globalement
-    });
 
     try {
       final currentUser = _auth.currentUser;
@@ -782,7 +762,6 @@ class _BookingPageState extends State<BookingPage> {
       final hour = int.parse(timeParts[0]);
       final minute = int.parse(timeParts[1]);
 
-      // Créer un TZDateTime dans le fuseau horaire du salon
       final salonStartTime = tz.TZDateTime(
         _salonLocation!,
         _selectedDate!.year,
@@ -792,16 +771,13 @@ class _BookingPageState extends State<BookingPage> {
         minute,
       );
 
-      // Convertir en UTC pour le stockage
       final utcStartTime = salonStartTime.toUtc();
       final utcEndTime = salonStartTime.add(_selectedService!.duration).toUtc();
 
-      // Récupérer le nom du client et du coiffeur
       final clientDoc =
           await _firestore.collection('users').doc(currentUser.uid).get();
       final clientName = clientDoc.data()?['nom'] as String? ?? 'Client inconnu';
 
-      // Récupérer le nom du coiffeur sélectionné
       final coiffeurName = _coiffeurs
           .firstWhere((c) => c.id == _selectedCoiffeurId,
               orElse: () => Coiffeur(id: '', name: 'Inconnu', icon: Icons.error, color: Colors.red))
@@ -809,9 +785,9 @@ class _BookingPageState extends State<BookingPage> {
 
       await _firestore.collection('appointments').add({
         'client_user_id': currentUser.uid,
-        'client_name': clientName, // Ajout du nom du client
+        'client_name': clientName,
         'coiffeur_user_id': _selectedCoiffeurId,
-        'coiffeur_name': coiffeurName, // Ajout du nom du coiffeur
+        'coiffeur_name': coiffeurName,
         'service_id': _selectedService!.id,
         'start_time': Timestamp.fromDate(utcStartTime),
         'end_time': Timestamp.fromDate(utcEndTime),
@@ -831,11 +807,9 @@ class _BookingPageState extends State<BookingPage> {
             backgroundColor: Colors.green[600],
           ),
         );
-        // Naviguer vers la page de gestion des RDV ou le planning
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) =>
-                  const PlanningPage()), // Ou ManageAppointmentsPage
+          MaterialPageRoute(builder: (context) => const PlanningPage()),
         );
       }
     } catch (e) {
@@ -846,8 +820,6 @@ class _BookingPageState extends State<BookingPage> {
               content: Text('Erreur lors de la confirmation: ${e.toString()}')),
         );
       }
-    } finally {
-      // Optionnel: Arrêter l'indicateur de chargement
     }
   }
 }
