@@ -130,7 +130,7 @@ class _AdminEditSubCategoryPageState extends State<AdminEditSubCategoryPage> {
             final color =
                 _getDynamicColorForSubCategory(subCategoryName, context);
             return Container(
-                color: color.withOpacity(0.15),
+                color: color.withAlpha((255 * 0.15).round()),
                 child: Icon(icon, color: color, size: 50));
           },
         );
@@ -138,7 +138,7 @@ class _AdminEditSubCategoryPageState extends State<AdminEditSubCategoryPage> {
       final icon = _getDynamicIconForSubCategory(subCategoryName);
       final color = _getDynamicColorForSubCategory(subCategoryName, context);
       imageWidget = Container(
-          color: color.withOpacity(0.15),
+          color: color.withAlpha((255 * 0.15).round()),
           child: Icon(icon, color: color, size: 50));
     }
     return Card(
