@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:soifapp/admins_pages/admin_edit_sub_category_page.dart';
 import 'package:soifapp/models/haircut_service.dart';
+import 'package:soifapp/models/sub_category.dart';
 
 class AdminManageServicesPage extends StatefulWidget {
   const AdminManageServicesPage({super.key});

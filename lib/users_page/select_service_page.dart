@@ -2,13 +2,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:soifapp/models/haircut_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:soifapp/models/sub_category.dart';
 
 class SelectServicePage extends StatefulWidget {
   final List<HaircutService> allServices;
+  final List<SubCategory> allSubCategories;
   final Future<List<HaircutService>> Function() onRefresh;
 
   const SelectServicePage(
-      {super.key, required this.allServices, required this.onRefresh});
+      {super.key,
+      required this.allServices,
+      required this.allSubCategories,
+      required this.onRefresh});
 
   @override
   State<SelectServicePage> createState() => _SelectServicePageState();
@@ -27,6 +32,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
   }
 
   Future<void> _handleRefresh() async {
+    // Note: This only refreshes services. A more complex state management
+    // would be needed to refresh both services and sub-categories from here.
     final newServices = await widget.onRefresh();
     if (mounted) {
       setState(() {
@@ -112,30 +119,29 @@ class _SelectServicePageState extends State<SelectServicePage> {
     return icons[name.hashCode % icons.length];
   }
 
-  Widget _buildSubCategoryCard(
-      String subCategoryName, String? subCategoryImagePath) {
+  Widget _buildSubCategoryCard(SubCategory subCategory) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     Widget imageWidget;
 
-    if (subCategoryImagePath != null && subCategoryImagePath.isNotEmpty) {
+    if (subCategory.imageUrl != null && subCategory.imageUrl!.isNotEmpty) {
       imageWidget = CachedNetworkImage(
-        imageUrl: subCategoryImagePath,
+        imageUrl: subCategory.imageUrl!,
         fit: BoxFit.cover,
         placeholder: (context, url) => Container(
           color: colorScheme.surfaceContainerHighest,
           child: const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
         ),
         errorWidget: (context, url, error) {
-          final icon = _getDynamicIconForSubCategory(subCategoryName);
+          final icon = _getDynamicIconForSubCategory(subCategory.name);
           return Container(
               color: colorScheme.surfaceContainer,
               child: Icon(icon, color: colorScheme.primary, size: 50));
         },
       );
     } else {
-      final icon = _getDynamicIconForSubCategory(subCategoryName);
+      final icon = _getDynamicIconForSubCategory(subCategory.name);
       imageWidget = Container(
           color: colorScheme.surfaceContainer,
           child: Icon(icon, color: colorScheme.primary, size: 50));
@@ -148,7 +154,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedSubCategoryName = subCategoryName;
+            _selectedSubCategoryName = subCategory.name;
           });
         },
         child: GridTile(
@@ -159,7 +165,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
             ),
             child: Text(
-              subCategoryName,
+              subCategory.name,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.bold,
@@ -176,31 +182,14 @@ class _SelectServicePageState extends State<SelectServicePage> {
   }
 
   Widget _buildSubCategorySelection({Key? key}) {
-    final relevantServices = _currentServices.where((service) {
-      return service.category == _selectedMainCategory;
+    final relevantSubCategories = widget.allSubCategories.where((subCat) {
+      return subCat.category == _selectedMainCategory.toJson();
     }).toList();
 
-    final Map<String, String?> subCategoryDetails = {};
-    for (var service in relevantServices) {
-      final subCategoryName = service.subCategory.trim();
-      if (subCategoryName.isNotEmpty) {
-        if (!subCategoryDetails.containsKey(subCategoryName) ||
-            (subCategoryDetails[subCategoryName] == null &&
-                service.imagePlaceholderSousCategory != null &&
-                service.imagePlaceholderSousCategory!.isNotEmpty)) {
-          subCategoryDetails[subCategoryName] =
-              service.imagePlaceholderSousCategory;
-        }
-      }
-    }
+    relevantSubCategories
+        .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-    final List<String> displayableSubCategoryNames =
-        subCategoryDetails.keys.toList();
-
-    displayableSubCategoryNames
-        .sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-    if (displayableSubCategoryNames.isEmpty) {
+    if (relevantSubCategories.isEmpty) {
       return const Center(
         child: Text("Aucune prestation disponible dans cette catégorie."),
       );
@@ -215,11 +204,10 @@ class _SelectServicePageState extends State<SelectServicePage> {
         mainAxisSpacing: 16.0,
         childAspectRatio: 1.0,
       ),
-      itemCount: displayableSubCategoryNames.length,
+      itemCount: relevantSubCategories.length,
       itemBuilder: (context, index) {
-        final subCategoryName = displayableSubCategoryNames[index];
-        final imagePath = subCategoryDetails[subCategoryName];
-        return _buildSubCategoryCard(subCategoryName, imagePath);
+        final subCategory = relevantSubCategories[index];
+        return _buildSubCategoryCard(subCategory);
       },
     );
   }
@@ -254,27 +242,21 @@ class _SelectServicePageState extends State<SelectServicePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: _displayCategories.map((category) {
                   final isSelected = _selectedMainCategory == category;
-                  IconData icon;
                   String text;
                   switch (category) {
                     case ServiceCategory.femme:
-                      icon = Icons.female_rounded;
                       text = 'Femme';
                       break;
                     case ServiceCategory.homme:
-                      icon = Icons.male_rounded;
                       text = 'Homme';
                       break;
                     case ServiceCategory.enfant:
-                      icon = Icons.child_care_rounded;
                       text = 'Enfant';
                       break;
                     case ServiceCategory.mixte:
-                      icon = Icons.spa_rounded;
                       text = 'Mixte';
                       break;
                     case ServiceCategory.undefined:
-                      icon = Icons.help_outline;
                       text = 'Autre';
                   }
                   return InkWell(

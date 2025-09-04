@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:soifapp/models/haircut_service.dart';
+import 'package:soifapp/models/sub_category.dart';
 import 'package:soifapp/users_page/coiffeur_details_page.dart';
 import 'package:soifapp/users_page/planning_page.dart';
 import 'package:soifapp/users_page/salon_location_page.dart';
@@ -19,7 +20,7 @@ import 'widgets/date_selector.dart';
 import 'widgets/service_selector.dart';
 import 'widgets/slot_selector.dart';
 
-// Tes fonctions d'aide existantes (inchangées)
+// Tes fonctions d aide existantes (inchangées)
 IconData _getDynamicIconForCoiffeur(String? id) {
   final icons = [
     Icons.female_rounded,
@@ -49,11 +50,11 @@ Color _getDynamicColorForCoiffeur(String? id) {
 class Coiffeur {
   final String id;
   final String name;
-  final IconData icon; // Conserve l'icône dynamique si tu veux aussi
+  final IconData icon; // Conserve l icon dynamique si tu veux aussi
   final Color color; // Conserve la couleur dynamique si tu veux aussi
   final List<String>? specialites;
   final String? descriptionBio;
-  final String? photoUrl; // Nouvelle propriété pour l'URL de la photo
+  final String? photoUrl; // Nouvelle propriete pour l URL de la photo
 
   Coiffeur({
     required this.id,
@@ -62,7 +63,7 @@ class Coiffeur {
     required this.color,
     this.specialites,
     this.descriptionBio,
-    this.photoUrl, // N'oublie pas de l'ajouter ici
+    this.photoUrl, // N oublie pas de l ajouter ici
   });
 
   // Nouvelle factory pour Firestore
@@ -81,7 +82,7 @@ class Coiffeur {
           : null,
       descriptionBio: data['description_bio'] as String?,
       photoUrl: data['photo_url']
-          as String?, // L'URL complète est stockée directement
+          as String?, // L URL complete est stockee directement
     );
   }
 }
@@ -96,17 +97,20 @@ class BookingPage extends StatefulWidget {
 class _BookingPageState extends State<BookingPage> {
   DateTime? _selectedDate;
   HaircutService? _selectedService;
-  String? _selectedCoiffeurId; // Stockera l'ID du coiffeur sélectionné
+  String? _selectedCoiffeurId; // Stockera l ID du coiffeur sélectionné
   String? _selectedCreneau;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<Coiffeur> _coiffeurs = []; // Sera rempli depuis Supabase
-  bool _isLoadingCoiffeurs = false;
+  bool _isLoadingCoiffeurs = true;
   String? _coiffeursError;
   List<HaircutService> _allServices = [];
-  bool _isLoadingServices = false;
+  bool _isLoadingServices = true;
   String? _servicesError;
+  List<SubCategory> _allSubCategories = [];
+  bool _isLoadingSubCategories = true;
+  String? _subCategoriesError;
 
   // Remplacé par des créneaux dynamiques
   List<String> _dynamicAvailableSlots = [];
@@ -124,8 +128,15 @@ class _BookingPageState extends State<BookingPage> {
   void initState() {
     super.initState();
     _initializeSalonLocation();
-    _fetchCoiffeurs();
-    _fetchServices();
+    _fetchAllData();
+  }
+
+  Future<void> _fetchAllData() async {
+    await Future.wait([
+      _fetchCoiffeurs(),
+      _fetchServices(),
+      _fetchSubCategories(),
+    ]);
   }
 
   Future<void> _initializeSalonLocation() async {
@@ -215,7 +226,35 @@ class _BookingPageState extends State<BookingPage> {
           SnackBar(content: Text(_servicesError!)),
         );
       }
-      return []; // Retourne une liste vide en cas d'erreur
+      return []; // Retourne une liste vide en cas d erreur
+    }
+  }
+
+  Future<void> _fetchSubCategories() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingSubCategories = true;
+      _subCategoriesError = null;
+    });
+
+    try {
+      final snapshot =
+          await _firestore.collection('sub_categories').get();
+      if (mounted) {
+        setState(() {
+          _allSubCategories =
+              snapshot.docs.map((doc) => SubCategory.fromFirestore(doc)).toList();
+          _isLoadingSubCategories = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        print('Erreur fetchSubCategories: $e');
+        setState(() {
+          _subCategoriesError = "Impossible de charger les catégories.";
+          _isLoadingSubCategories = false;
+        });
+      }
     }
   }
 
@@ -393,8 +432,8 @@ class _BookingPageState extends State<BookingPage> {
           .add(const Duration(days: 60)), // Réservable sur 60 jours
       locale: const Locale('fr', 'FR'), // Ajout de la locale française ici
       builder: (context, child) {
-        // Le DatePicker utilisera désormais le thème global de l'application
-        // ou vous pouvez définir un thème spécifique ici qui s'adapte
+        // Le DatePicker utilisera désormais le thème global de l application
+        // ou vous pouvez définir un thème spécifique ici qui s adapte
         return Theme(
           data: Theme.of(context), // Utilise le thème parent
           child: child!,
@@ -419,6 +458,7 @@ class _BookingPageState extends State<BookingPage> {
       MaterialPageRoute(
         builder: (context) => SelectServicePage(
           allServices: _allServices,
+          allSubCategories: _allSubCategories,
           onRefresh: _fetchServices,
         ),
       ),
@@ -574,7 +614,7 @@ class _BookingPageState extends State<BookingPage> {
         MaterialPageRoute(builder: (context) => const SalonLocationPage()),
       );
     } else if (index == 3) {
-      // Paramètres est maintenant à l'index 3
+      // Paramètres est maintenant à l index 3
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const SettingsPage()),
@@ -591,6 +631,7 @@ class _BookingPageState extends State<BookingPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final bool isLoading = _isLoadingServices || _isLoadingSubCategories;
 
     return Scaffold(
       appBar: AppBar(
@@ -624,7 +665,7 @@ class _BookingPageState extends State<BookingPage> {
               context: context,
               step: '2',
               title: 'Choisissez une prestation',
-              content: _isLoadingServices
+              content: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _servicesError != null
                       ? Center(
@@ -678,7 +719,7 @@ class _BookingPageState extends State<BookingPage> {
               label: const Text('Confirmer la réservation'),
               icon: const Icon(Icons.check_circle_outline),
               backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
+              foregroundColor: colorScheme.onPrimary, // Fix: Use scale instead of scaleIn
             ).animate().scale(duration: 300.ms, curve: Curves.easeOut)
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -712,7 +753,7 @@ class _BookingPageState extends State<BookingPage> {
                   backgroundColor: colorScheme.primary,
                   foregroundColor: colorScheme.onPrimary,
                   radius: 14,
-                  child: Text(step,
+                  child: Text(step, 
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 12),
