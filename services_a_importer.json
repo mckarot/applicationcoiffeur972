@@ -1,0 +1,72 @@
+[
+  {
+    "category": "homme",
+    "name": "Coupe Classique",
+    "sub_category": "Coupes",
+    "price": 25,
+    "duration_minutes": 30
+  },
+  {
+    "category": "homme",
+    "name": "Taille de Barbe",
+    "sub_category": "Barbe",
+    "price": 15,
+    "duration_minutes": 20
+  },
+  {
+    "category": "homme",
+    "name": "Coupe Tondeuse (1 sabot)",
+    "sub_category": "Coupes",
+    "price": 18,
+    "duration_minutes": 20
+  },
+  {
+    "category": "femme",
+    "name": "Brushing Cheveux Courts",
+    "sub_category": "Coiffage",
+    "price": 25,
+    "duration_minutes": 30
+  },
+  {
+    "category": "femme",
+    "name": "Brushing Cheveux Longs",
+    "sub_category": "Coiffage",
+    "price": 35,
+    "duration_minutes": 45
+  },
+  {
+    "category": "femme",
+    "name": "Coloration Racines",
+    "sub_category": "Coloration",
+    "price": 50,
+    "duration_minutes": 90
+  },
+  {
+    "category": "femme",
+    "name": "Soin Capillaire Profond",
+    "sub_category": "Soins",
+    "price": 40,
+    "duration_minutes": 60
+  },
+  {
+    "category": "enfant",
+    "name": "Coupe Garçon (-10 ans)",
+    "sub_category": "Coupes",
+    "price": 15,
+    "duration_minutes": 25
+  },
+  {
+    "category": "enfant",
+    "name": "Coupe Fille (-10 ans)",
+    "sub_category": "Coupes",
+    "price": 18,
+    "duration_minutes": 30
+  },
+  {
+    "category": "mixte",
+    "name": "Shampoing + Coupe + Coiffage",
+    "sub_category": "Forfaits",
+    "price": 45,
+    "duration_minutes": 60
+  }
+]

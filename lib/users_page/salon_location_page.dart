@@ -254,8 +254,8 @@ class _SalonLocationPageState extends State<SalonLocationPage> {
           ),
         ),
       ),
-      bottomNavigationBar:
-          ModernBottomNavBar(currentIndex: _currentIndex, onTap: _onNavBarTap),
+      bottomNavigationBar: ModernBottomNavBar(
+        currentIndex: _currentIndex, onTap: _onNavBarTap),
     );
   }
 

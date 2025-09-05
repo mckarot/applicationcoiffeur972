@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ModernBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -10,78 +11,125 @@ class ModernBottomNavBar extends StatelessWidget {
     required this.onTap,
   });
 
-  Widget _buildNavItem(
-      BuildContext context, IconData icon, String label, int index) {
-    bool isSelected = currentIndex == index;
-    Color activeColor = Theme.of(context).colorScheme.primary;
-    Color inactiveColor =
-        Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Using MediaQuery to get safe area padding, making it adaptive.
+    final safeAreaPadding = MediaQuery.of(context).padding.bottom;
 
-    return Expanded(
-      child: InkWell(
-        onTap: () => onTap(index),
-        borderRadius: BorderRadius.circular(30.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(
-              icon,
-              color: isSelected ? activeColor : inactiveColor,
-              size: isSelected ? 26 : 24,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? activeColor : inactiveColor,
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+    // Adjusted height and padding to prevent overflow on various screen densities.
+    return Container(
+      height: 70 + safeAreaPadding,
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 8,
+        bottom: safeAreaPadding + 8,
+      ),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, -5),
+          ),
+        ],
+        border: Border(
+          top: BorderSide(
+            color: theme.dividerColor.withOpacity(0.1),
+            width: 1.0,
+          ),
         ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(
+            context: context,
+            selectedIcon: Icons.calendar_today,
+            unselectedIcon: Icons.calendar_today_outlined,
+            label: "RDV",
+            index: 0,
+          ),
+          _buildNavItem(
+            context: context,
+            selectedIcon: Icons.event_note,
+            unselectedIcon: Icons.event_note_outlined,
+            label: "Planning",
+            index: 1,
+          ),
+          _buildNavItem(
+            context: context,
+            selectedIcon: Icons.location_on,
+            unselectedIcon: Icons.location_on_outlined,
+            label: "Localisation",
+            index: 2,
+          ),
+          _buildNavItem(
+            context: context,
+            selectedIcon: Icons.settings,
+            unselectedIcon: Icons.settings_outlined,
+            label: "Paramètres",
+            index: 3,
+          ),
+        ],
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    return BottomAppBar(
-      color: Colors.transparent,
-      elevation: 0,
-      child: Center(
-        child: Container(
-          width: screenWidth * 2 / 3,
-          height: 65,
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(30.0),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                spreadRadius: 2,
-                offset: const Offset(0, 3),
+  Widget _buildNavItem({
+    required BuildContext context,
+    required IconData selectedIcon,
+    required IconData unselectedIcon,
+    required String label,
+    required int index,
+  }) {
+    final bool isSelected = currentIndex == index;
+    final theme = Theme.of(context);
+    final Color activeColor = theme.colorScheme.primary;
+    final Color inactiveColor = theme.colorScheme.onSurface.withOpacity(0.6);
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          onTap(index);
+          HapticFeedback.lightImpact();
+        },
+        behavior: HitTestBehavior.translucent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              padding: isSelected
+                  ? const EdgeInsets.symmetric(horizontal: 16, vertical: 6)
+                  : const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? activeColor.withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(30.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: <Widget>[
-                _buildNavItem(context, Icons.calendar_today_outlined, "RDV", 0),
-                _buildNavItem(
-                    context, Icons.event_note_outlined, "Planning", 1),
-                _buildNavItem(
-                    context, Icons.location_on_outlined, "Localisation", 2),
-                _buildNavItem(
-                    context, Icons.settings_outlined, "Paramètres", 3),
-              ],
+              child: Icon(
+                isSelected ? selectedIcon : unselectedIcon,
+                color: isSelected ? activeColor : inactiveColor,
+                size: 24,
+              ),
             ),
-          ),
+            const SizedBox(height: 2), // Reduced height to prevent overflow
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                color: isSelected ? activeColor : inactiveColor,
+                fontSize: 10, // Reduced font size for more space
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+              child: Text(label),
+            ),
+          ],
         ),
       ),
     );
