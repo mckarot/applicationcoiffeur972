@@ -144,21 +144,42 @@ class AppointmentsTimeline extends StatelessWidget {
                 );
               }),
 
-              // --- Red line for current time ---
+              // --- Enhanced time indicator line with red color and dot ---
               if (isSelectedDayToday &&
                   now.hour >= startHour &&
                   now.hour < endHour)
-                Positioned(
-                  top:
-                      (now.difference(timelineStartDateTime).inMinutes / 60.0) *
-                              hourHeight +
-                          8.0, // Add 8.0 to align with the hour line
-                  left: 50, // Start after the hour text
-                  right: 0,
-                  child: Container(
-                    height: 2.5,
-                    color: Colors.red,
-                  ),
+                Stack(
+                  children: [
+                    // Line indicator with same width and position as appointment cards
+                    Positioned(
+                      top:
+                          (now.difference(timelineStartDateTime).inMinutes / 60.0) *
+                                  hourHeight +
+                              8.0, // Add 8.0 to align with the hour line
+                      left: 50.0, // Same left position as appointment cards
+                      right: 0, // Same right position as appointment cards
+                      child: Container(
+                        height: 2.5,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    // Dot indicator aligned with the left edge of appointment cards
+                    Positioned(
+                      top:
+                          (now.difference(timelineStartDateTime).inMinutes / 60.0) *
+                                  hourHeight +
+                              8.0 - 5, // Center the dot vertically with the line
+                      left: 50.0, // Align with the left edge of appointment cards
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.error,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
             ],
           ),
