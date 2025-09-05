@@ -110,6 +110,7 @@ class _BookingPageState extends State<BookingPage> {
   String? _servicesError;
   List<SubCategory> _allSubCategories = [];
   bool _isLoadingSubCategories = true;
+  // ignore: unused_field
   String? _subCategoriesError;
   bool _imagesPrecached = false;
 

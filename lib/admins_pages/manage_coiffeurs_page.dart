@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:soifapp/admins_pages/activate_coiffeur_page.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 class CoiffeurManagementInfo {
   final String uid;

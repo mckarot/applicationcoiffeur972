@@ -61,9 +61,10 @@ class _AdminDeleteCoiffeurPageState extends State<AdminDeleteCoiffeurPage> {
         });
       }
     } catch (e) {
+
       if (mounted) {
         setState(() {
-          _errorMessage = "Erreur lors de la récupération des coiffeurs.";
+          _errorMessage = "Erreur: $e";
           _isLoading = false;
         });
       }

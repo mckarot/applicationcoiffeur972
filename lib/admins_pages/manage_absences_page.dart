@@ -20,7 +20,6 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
   DateTime? _startDate;
   DateTime? _endDate;
   tz.Location? _salonLocation;
-  // Un seul sélecteur de période
   String _selectedPeriod = 'Journée complète';
   final List<String> _dayPeriods = const [
     'Journée complète',
@@ -29,6 +28,7 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
   ];
   final TextEditingController _reasonController = TextEditingController();
   bool _isLoading = false;
+  bool _isListLoading = false;
 
   @override
   void initState() {
@@ -45,12 +45,11 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
   }
 
   Future<void> _initializeSalonLocation() async {
-    // Il est préférable d'initialiser les fuseaux horaires une seule fois dans main.dart
-    // mais nous le faisons ici par sécurité.
     tz_data.initializeTimeZones();
     try {
       _salonLocation = tz.getLocation('America/Martinique');
     } catch (e) {
+      // ignore: avoid_print
       print(
           "Erreur initialisation fuseau horaire salon (ManageAbsencesPage): $e");
       if (mounted) {
@@ -77,25 +76,36 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
         }).toList();
       });
     } catch (e) {
+      // ignore: avoid_print
       print("Erreur fetchCoiffeurs (ManageAbsencesPage): $e");
     }
   }
 
   Future<void> _fetchAbsences() async {
     if (_selectedCoiffeurId == null) return;
-    final absencesSnapshot = await _firestore
-        .collection('coiffeur_absences')
-        .where('coiffeur_user_id', isEqualTo: _selectedCoiffeurId!)
-        .orderBy('start_time')
-        .get();
-    if (!mounted) return;
-    setState(() {
-      _absences = absencesSnapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id; // Ajouter l'ID du document à la map
-        return data;
-      }).toList();
-    });
+    setState(() => _isListLoading = true);
+    try {
+      final absencesSnapshot = await _firestore
+          .collection('coiffeur_absences')
+          .where('coiffeur_user_id', isEqualTo: _selectedCoiffeurId!)
+          .orderBy('start_time')
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _absences = absencesSnapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print("Erreur fetchAbsences (ManageAbsencesPage): $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isListLoading = false);
+      }
+    }
   }
 
   tz.TZDateTime _getDateTimeWithPeriod(DateTime date, String period,
@@ -138,22 +148,15 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // Utiliser un batch pour insérer toutes les absences de manière atomique
       final batch = _firestore.batch();
-
       for (var day = 0;
           day <= _endDate!.difference(_startDate!).inDays;
           day++) {
         final currentDate = _startDate!.add(Duration(days: day));
-
-        // Créer un nouveau document pour chaque absence
         final newAbsenceRef = _firestore.collection('coiffeur_absences').doc();
-
         final tz.TZDateTime finalStartDate = _getDateTimeWithPeriod(
             currentDate, _selectedPeriod, true, _salonLocation!);
         final tz.TZDateTime finalEndDate = _getDateTimeWithPeriod(
@@ -169,11 +172,8 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
           'created_at': FieldValue.serverTimestamp(),
         });
       }
-
       await batch.commit();
-
       if (!mounted) return;
-
       _fetchAbsences();
       _clearAbsenceFields();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -184,21 +184,15 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
           SnackBar(content: Text('Erreur lors de l\'ajout de l\'absence: $e')));
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
 
   Future<void> _deleteAbsence(String absenceId) async {
-    setState(() {
-      _isLoading = true;
-    });
     try {
       await _firestore.collection('coiffeur_absences').doc(absenceId).delete();
       if (!mounted) return;
-
       _fetchAbsences();
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Absence supprimée avec succès.')));
@@ -206,12 +200,6 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Erreur lors de la suppression de l\'absence: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
@@ -227,211 +215,287 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
   String _formatAbsencePeriod(tz.TZDateTime start, tz.TZDateTime end) {
     final DateFormat dayFormat = DateFormat('dd/MM/yyyy', 'fr_FR');
     final DateFormat timeFormat = DateFormat.Hm('fr_FR');
-
     final String startDay = dayFormat.format(start);
-    final String endDay = dayFormat.format(end);
-
     final String formattedStartTime = timeFormat.format(start);
     final String formattedEndTime = timeFormat.format(end);
 
-    if (startDay == endDay) {
-      if (start.hour == 9 && end.hour == 12) {
-        return 'Le $startDay (Matin : $formattedStartTime - $formattedEndTime)';
-      }
-      if (start.hour == 13 && end.hour == 19) {
-        return 'Le $startDay (Après-midi : $formattedStartTime - $formattedEndTime)';
-      }
-      if (start.hour == 9 && end.hour == 19) {
-        return 'Le $startDay (Journée complète : $formattedStartTime - $formattedEndTime)';
-      }
-      return 'Le $startDay de $formattedStartTime à $formattedEndTime';
-    } else {
-      return 'Du ${dayFormat.format(start)} (${timeFormat.format(start)}) au ${dayFormat.format(end)} (${timeFormat.format(end)})';
+    if (start.hour == 9 && end.hour == 12) {
+      return 'Le $startDay (Matin)';
     }
+    if (start.hour == 13 && end.hour == 19) {
+      return 'Le $startDay (Après-midi)';
+    }
+    if (start.hour == 9 && end.hour == 19) {
+      return 'Le $startDay (Journée complète)';
+    }
+    return 'Le $startDay de $formattedStartTime à $formattedEndTime';
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gérer les absences'),
+        elevation: 1,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sélectionner un coiffeur',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                value: _selectedCoiffeurId,
+                hint: const Text('Choisir un coiffeur'),
+                items: _coiffeurs.map((coiffeur) {
+                  return DropdownMenuItem<String>(
+                    value: coiffeur['id'] as String,
+                    child: Text(coiffeur['nom'] as String),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCoiffeurId = value;
+                    _absences.clear();
+                    if (value != null) {
+                      _fetchAbsences();
+                    }
+                  });
+                },
+              ),
+              if (_selectedCoiffeurId != null) ...[
+                const SizedBox(height: 24),
+                _buildAddAbsenceCard(theme),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 16),
+                Text(
+                  'Absences planifiées',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                _buildAbsencesList(),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddAbsenceCard(ThemeData theme) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DropdownButtonFormField<String>(
-              decoration:
-                  const InputDecoration(labelText: 'Sélectionner un coiffeur'),
-              value: _selectedCoiffeurId,
-              items: _coiffeurs.map((coiffeur) {
-                return DropdownMenuItem<String>(
-                  value: coiffeur['id'] as String,
-                  child: Text(coiffeur['nom'] as String),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedCoiffeurId = value;
-                  _absences.clear();
-                  if (value != null) {
-                    _fetchAbsences();
-                  }
-                });
-              },
-            ),
+            Text('Ajouter une nouvelle absence', style: theme.textTheme.titleMedium),
             const SizedBox(height: 20),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final DateTime? pickedDate = await showDatePicker(
-                        context: context,
-                        initialDate: _startDate ?? DateTime.now(),
-                        firstDate:
-                            DateTime.now().subtract(const Duration(days: 365)),
-                        lastDate: DateTime(2100),
-                        locale: const Locale('fr', 'FR'),
-                      );
-                      if (pickedDate != null) {
-                        setState(() {
-                          _startDate = pickedDate;
-                          if (_endDate == null ||
-                              _endDate!.isBefore(pickedDate)) {
-                            _endDate = pickedDate;
-                          }
-                        });
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Date de début',
-                        hintText: 'Sélectionner une date',
-                      ),
-                      child: Text(_startDate != null
-                          ? DateFormat('dd/MM/yyyy', 'fr_FR')
-                              .format(_startDate!)
-                          : 'Non sélectionnée'),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final DateTime? pickedDate = await showDatePicker(
-                        context: context,
-                        initialDate: _endDate ?? _startDate ?? DateTime.now(),
-                        firstDate: _startDate ??
-                            DateTime.now().subtract(const Duration(days: 365)),
-                        lastDate: DateTime(2100),
-                        locale: const Locale('fr', 'FR'),
-                      );
-                      if (pickedDate != null) {
-                        setState(() {
+                    child: _buildDatePickerField(
+                  label: 'Date de début',
+                  selectedDate: _startDate,
+                  onTap: () async {
+                    final pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: _startDate ?? DateTime.now(),
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime(2100),
+                      locale: const Locale('fr', 'FR'),
+                    );
+                    if (pickedDate != null) {
+                      setState(() {
+                        _startDate = pickedDate;
+                        if (_endDate == null ||
+                            _endDate!.isBefore(pickedDate)) {
                           _endDate = pickedDate;
-                        });
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Date de fin',
-                        hintText: 'Sélectionner une date',
-                      ),
-                      child: Text(_endDate != null
-                          ? DateFormat('dd/MM/yyyy', 'fr_FR').format(_endDate!)
-                          : 'Non sélectionnée'),
-                    ),
-                  ),
-                ),
+                        }
+                      });
+                    }
+                  },
+                )),
+                const SizedBox(width: 16),
+                Expanded(
+                    child: _buildDatePickerField(
+                  label: 'Date de fin',
+                  selectedDate: _endDate,
+                  onTap: () async {
+                    final pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: _endDate ?? _startDate ?? DateTime.now(),
+                      firstDate: _startDate ??
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime(2100),
+                      locale: const Locale('fr', 'FR'),
+                    );
+                    if (pickedDate != null) {
+                      setState(() => _endDate = pickedDate);
+                    }
+                  },
+                )),
               ],
             ),
             const SizedBox(height: 20),
-            // Le sélecteur de période unique
             DropdownButtonFormField<String>(
-              decoration:
-                  const InputDecoration(labelText: 'Période d\'absence'),
+              decoration: InputDecoration(
+                labelText: 'Période d\'absence',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                prefixIcon: const Icon(Icons.access_time),
+              ),
               value: _selectedPeriod,
-              items: _dayPeriods.map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items: _dayPeriods.map((String value) { return DropdownMenuItem<String>(value: value, child: Text(value)); }).toList(),
               onChanged: (String? newValue) {
-                setState(() {
-                  _selectedPeriod = newValue!;
-                });
+                setState(() => _selectedPeriod = newValue!);
               },
             ),
             const SizedBox(height: 20),
             TextFormField(
               controller: _reasonController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Raison (optionnel)',
-                border: OutlineInputBorder(),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                prefixIcon: const Icon(Icons.notes),
               ),
+              maxLines: 2,
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _addAbsence,
-              child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Ajouter absence(s)'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: _isLoading ? null : _addAbsence,
+                label: const Text('Ajouter'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
             ),
-            const SizedBox(height: 40),
-            const Text('Absences planifiées:',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _absences.isEmpty
-                    ? const Text('Aucune absence planifiée pour ce coiffeur.')
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _absences.length,
-                        itemBuilder: (context, index) {
-                          final absence = _absences[index];
-                          if (_salonLocation == null) {
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 4.0),
-                              child: ListTile(
-                                title: const Text("Erreur de fuseau horaire"),
-                                subtitle: Text(
-                                    "Impossible d'afficher l'absence pour ${absence['start_time']}"),
-                              ),
-                            );
-                          }
-                          final tz.TZDateTime startTime = tz.TZDateTime.from(
-                              (absence['start_time'] as Timestamp).toDate(),
-                              _salonLocation!);
-                          final tz.TZDateTime endTime = tz.TZDateTime.from(
-                              (absence['end_time'] as Timestamp).toDate(),
-                              _salonLocation!);
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: ListTile(
-                              title: Text(
-                                  _formatAbsencePeriod(startTime, endTime)),
-                              subtitle: Text(absence['reason'] as String? ??
-                                  'Aucune raison spécifiée'),
-                              trailing: IconButton(
-                                icon:
-                                    const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () =>
-                                    _deleteAbsence(absence['id'] as String),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+            if (_isLoading) ...[
+              const SizedBox(height: 10),
+              const Center(child: LinearProgressIndicator()),
+            ]
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDatePickerField({
+    required String label,
+    required DateTime? selectedDate,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          prefixIcon: const Icon(Icons.calendar_today),
+        ),
+        child: Text(
+          selectedDate != null
+              ? DateFormat('dd/MM/yyyy', 'fr_FR').format(selectedDate)
+              : 'Sélectionner',
+          style: TextStyle(
+            color: selectedDate != null ? null : Theme.of(context).hintColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAbsencesList() {
+    if (_isListLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_absences.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.event_available, size: 60, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              const Text('Aucune absence planifiée',
+                  style: TextStyle(fontSize: 16, color: Colors.grey)),
+            ],
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _absences.length,
+      itemBuilder: (context, index) {
+        final absence = _absences[index];
+        if (_salonLocation == null) {
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 4.0),
+            color: Colors.red[50],
+            child: const ListTile(
+              leading: Icon(Icons.error_outline, color: Colors.red),
+              title: Text("Erreur de fuseau horaire"),
+              subtitle: Text("Impossible d'afficher cette absence."),
+            ),
+          );
+        }
+        final tz.TZDateTime startTime = tz.TZDateTime.from(
+            (absence['start_time'] as Timestamp).toDate(), _salonLocation!);
+        final tz.TZDateTime endTime = tz.TZDateTime.from(
+            (absence['end_time'] as Timestamp).toDate(), _salonLocation!);
+        return Card(
+          elevation: 1,
+          margin: const EdgeInsets.symmetric(vertical: 6.0),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: const Icon(Icons.event_busy_outlined),
+            ),
+            title: Text(_formatAbsencePeriod(startTime, endTime), 
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(
+              absence['reason'] as String? ?? 'Aucune raison spécifiée',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            trailing: IconButton(
+              icon: Icon(Icons.delete_outline, color: Colors.red[700]),
+              tooltip: 'Supprimer l\'absence',
+              onPressed: () => _deleteAbsence(absence['id'] as String),
+            ),
+          ),
+        );
+      },
     );
   }
 }
