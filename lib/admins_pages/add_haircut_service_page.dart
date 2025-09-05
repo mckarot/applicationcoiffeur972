@@ -98,7 +98,7 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
             tabs: const [
               Tab(
                   icon: Icon(Icons.create_new_folder_outlined),
-                  text: "Sous-Catégorie"),
+                  text: "Catégorie"),
               Tab(icon: Icon(Icons.add), text: "Service"),
             ],
             indicatorColor: Theme.of(context).colorScheme.onPrimary,
@@ -109,7 +109,7 @@ class _AddHaircutServicePageState extends State<AddHaircutServicePage> {
         ),
         body: TabBarView(
           children: [
-            _AddSubCategoryView(
+            _AddCategoryView(
               existingSubCategories: _allSubCategories,
               onSubCategoryAdded: () {
                 _fetchExistingSubCategories();
@@ -361,12 +361,12 @@ class _AddServiceViewState extends State<_AddServiceView> {
                   value: _selectedSubCategory,
                   decoration: _buildInputDecoration(
                     context: context,
-                    label: 'Sous-catégorie*', 
+                    label: 'Catégorie*', 
                     prefixIcon: Icons.list_alt,
                   ),
                   hint: Text(_selectedCategory == null
                       ? 'Choisissez d\'abord une catégorie'
-                      : 'Sélectionnez une sous-catégorie'),
+                      : 'Sélectionnez une catégorie'),
                   items: _availableSubCategories.map((String subCategory) {
                     return DropdownMenuItem<String>(
                       value: subCategory,
@@ -379,7 +379,7 @@ class _AddServiceViewState extends State<_AddServiceView> {
                       : (String? newValue) =>
                           setState(() => _selectedSubCategory = newValue),
                   validator: (value) => value == null || value.isEmpty
-                      ? 'Veuillez sélectionner une sous-catégorie.'
+                      ? 'Veuillez sélectionner une catégorie.'
                       : null,
                 ),
               const SizedBox(height: 24),
@@ -414,20 +414,20 @@ class _AddServiceViewState extends State<_AddServiceView> {
 }
 
 /// Onglet pour ajouter une nouvelle sous-catégorie.
-class _AddSubCategoryView extends StatefulWidget {
+class _AddCategoryView extends StatefulWidget {
   final List<String> existingSubCategories;
   final VoidCallback onSubCategoryAdded;
 
-  const _AddSubCategoryView({
+  const _AddCategoryView({
     required this.onSubCategoryAdded,
     required this.existingSubCategories,
   });
 
   @override
-  State<_AddSubCategoryView> createState() => _AddSubCategoryViewState();
+  State<_AddCategoryView> createState() => _AddCategoryViewState();
 }
 
-class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
+class _AddCategoryViewState extends State<_AddCategoryView> {
   final _formKey = GlobalKey<FormState>();
   final _subCategoryNameController = TextEditingController();
   File? _selectedSubCategoryImageFile;
@@ -485,7 +485,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Sous-catégorie ajoutée avec succès!'),
+              content: Text('Catégorie ajoutée avec succès!'),
               backgroundColor: Colors.green),
         );
         _subCategoryNameController.clear();
@@ -497,11 +497,11 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
       }
     } catch (e) {
       if (mounted) {
-        print("Erreur lors de l'ajout de la sous-catégorie: $e");
+        print("Erreur lors de l'ajout de la catégorie: $e");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
-                  "Erreur lors de l'ajout de la sous-catégorie: ${e.toString()}"),
+                  "Erreur lors de l'ajout de la catégorie: ${e.toString()}"),
               backgroundColor: Colors.red),
         );
       }
@@ -534,7 +534,7 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              "Créer une nouvelle sous-catégorie",
+              "Créer une nouvelle catégorie",
               style: theme.textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
@@ -574,22 +574,22 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
               controller: _subCategoryNameController,
               decoration: _buildInputDecoration(
                 context: context,
-                label: 'Nom de la nouvelle sous-catégorie*', 
+                label: 'Nom de la nouvelle catégorie*', 
                 prefixIcon: Icons.create_new_folder_outlined,
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Veuillez entrer le nom de la sous-catégorie.';
+                  return 'Veuillez entrer le nom de la catégorie.';
                 }
                 if (widget.existingSubCategories.any(
                     (c) => c.toLowerCase() == value.trim().toLowerCase())) {
-                  return 'Cette sous-catégorie existe déjà.';
+                  return 'Cette catégorie existe déjà.';
                 }
                 return null;
               },
             ),
             const SizedBox(height: 24),
-            Text("Image pour la Sous-Catégorie* :",
+            Text("Image pour la Catégorie* :",
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
@@ -597,15 +597,15 @@ class _AddSubCategoryViewState extends State<_AddSubCategoryView> {
               context: context,
               selectedFile: _selectedSubCategoryImageFile,
               onPressed: _pickImageForSubCategory,
-              buttonText: 'Choisir une image pour la sous-catégorie',
-              changeButtonText: 'Changer l\'image de la sous-catégorie',
+              buttonText: 'Choisir une image pour la catégorie',
+              changeButtonText: 'Changer l\'image de la catégorie',
             ),
             const SizedBox(height: 30),
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton.icon(
                     icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Ajouter la Sous-Catégorie'),
+                    label: const Text('Ajouter la Catégorie'),
                     onPressed: _addSubCategory,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),

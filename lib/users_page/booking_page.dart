@@ -111,6 +111,8 @@ class _BookingPageState extends State<BookingPage> {
   List<SubCategory> _allSubCategories = [];
   bool _isLoadingSubCategories = true;
   String? _subCategoriesError;
+  bool _imagesPrecached = false;
+
 
   // Remplacé par des créneaux dynamiques
   List<String> _dynamicAvailableSlots = [];
@@ -131,12 +133,52 @@ class _BookingPageState extends State<BookingPage> {
     _fetchAllData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pre-cache images after the first frame is built and data is fetched.
+    if (!_imagesPrecached && !_isLoadingCoiffeurs && !_isLoadingSubCategories && !_isLoadingServices) {
+      _precacheAllImages();
+      _imagesPrecached = true;
+    }
+  }
+
+  void _precacheAllImages() {
+    if (!mounted) return;
+    // Pre-cache coiffeur images
+    for (final coiffeur in _coiffeurs) {
+      if (coiffeur.photoUrl != null && coiffeur.photoUrl!.isNotEmpty) {
+        precacheImage(CachedNetworkImageProvider(coiffeur.photoUrl!), context);
+      }
+    }
+    // Pre-cache sub-category images
+    for (final subCategory in _allSubCategories) {
+      if (subCategory.imageUrl != null && subCategory.imageUrl!.isNotEmpty) {
+        precacheImage(CachedNetworkImageProvider(subCategory.imageUrl!), context);
+      }
+    }
+    // Pre-cache service images
+    for (final service in _allServices) {
+      if (service.imagePlaceholder.isNotEmpty) {
+        precacheImage(CachedNetworkImageProvider(service.imagePlaceholder), context);
+      }
+    }
+  }
+
   Future<void> _fetchAllData() async {
     await Future.wait([
       _fetchCoiffeurs(),
       _fetchServices(),
       _fetchSubCategories(),
     ]);
+    // Trigger pre-caching after all data is fetched and state is updated.
+    if (mounted && !_imagesPrecached) {
+      // A short delay to ensure the context is ready for precaching.
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _precacheAllImages();
+        _imagesPrecached = true;
+      });
+    }
   }
 
   Future<void> _initializeSalonLocation() async {
@@ -864,3 +906,4 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 }
+

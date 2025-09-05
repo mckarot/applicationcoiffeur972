@@ -24,12 +24,41 @@ class _SelectServicePageState extends State<SelectServicePage> {
   ServiceCategory _selectedMainCategory =
       ServiceCategory.femme; // Catégorie par défaut
   String? _selectedSubCategoryName;
+  bool _imagesPrecached = false;
 
   @override
   void initState() {
     super.initState();
     _currentServices = widget.allServices;
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pre-cache images only once when the dependencies are available.
+    if (!_imagesPrecached) {
+      _precacheImages();
+      _imagesPrecached = true;
+    }
+  }
+
+  /// Pre-caches all sub-category and service images to ensure smooth navigation
+  /// and reduce network usage on subsequent views.
+  void _precacheImages() {
+    // Pre-cache sub-category images
+    for (final subCategory in widget.allSubCategories) {
+      if (subCategory.imageUrl != null && subCategory.imageUrl!.isNotEmpty) {
+        precacheImage(CachedNetworkImageProvider(subCategory.imageUrl!), context);
+      }
+    }
+    // Pre-cache service images
+    for (final service in widget.allServices) {
+      if (service.imagePlaceholder.isNotEmpty) {
+        precacheImage(CachedNetworkImageProvider(service.imagePlaceholder), context);
+      }
+    }
+  }
+
 
   Future<void> _handleRefresh() async {
     // Note: This only refreshes services. A more complex state management
