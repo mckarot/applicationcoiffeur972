@@ -64,81 +64,84 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: <Widget>[
-          SwitchListTile(
-            title: const Text('Mode Sombre'),
-            value: themeProvider.isDarkMode,
-            onChanged: (bool value) {
-              themeProvider.toggleTheme(value);
-            },
-            secondary: Icon(
-              themeProvider.isDarkMode
-                  ? Icons.dark_mode_rounded
-                  : Icons.light_mode_rounded,
-              color: Theme.of(context).colorScheme.primary,
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-            activeColor: Theme.of(context).colorScheme.primary,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.color_lens_outlined,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Thème du système'),
+                  trailing: Radio<ThemeMode>(
+                    value: ThemeMode.system,
+                    groupValue: themeProvider.themeMode,
+                    onChanged: (ThemeMode? value) {
+                      if (value != null) {
+                        themeProvider.setThemeMode(value);
+                      }
+                    },
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(Icons.light_mode_outlined,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Thème clair'),
+                  trailing: Radio<ThemeMode>(
+                    value: ThemeMode.light,
+                    groupValue: themeProvider.themeMode,
+                    onChanged: (ThemeMode? value) {
+                      if (value != null) {
+                        themeProvider.setThemeMode(value);
+                      }
+                    },
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(Icons.dark_mode_outlined,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Thème sombre'),
+                  trailing: Radio<ThemeMode>(
+                    value: ThemeMode.dark,
+                    groupValue: themeProvider.themeMode,
+                    onChanged: (ThemeMode? value) {
+                      if (value != null) {
+                        themeProvider.setThemeMode(value);
+                      }
+                    },
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const Divider(),
-          ListTile(
-            leading: Icon(Icons.color_lens_outlined,
-                color: Theme.of(context).colorScheme.primary),
-            title: const Text('Thème du système'),
-            trailing: Radio<ThemeMode>(
-              value: ThemeMode.system,
-              groupValue: themeProvider.themeMode,
-              onChanged: (ThemeMode? value) {
-                if (value != null) {
-                  themeProvider.setThemeMode(value);
-                }
+          const SizedBox(height: 16),
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              leading: Icon(Icons.password_rounded,
+                  color: Theme.of(context).colorScheme.primary),
+              title: const Text('Modifier le mot de passe'),
+              trailing: Icon(Icons.arrow_forward_ios_rounded,
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                  size: 18),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const ChangePasswordPage()),
+                );
               },
-              activeColor: Theme.of(context).colorScheme.primary,
             ),
-          ),
-          ListTile(
-            leading: Icon(Icons.light_mode_outlined,
-                color: Theme.of(context).colorScheme.primary),
-            title: const Text('Thème clair'),
-            trailing: Radio<ThemeMode>(
-              value: ThemeMode.light,
-              groupValue: themeProvider.themeMode,
-              onChanged: (ThemeMode? value) {
-                if (value != null) {
-                  themeProvider.setThemeMode(value);
-                }
-              },
-              activeColor: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.dark_mode_outlined,
-                color: Theme.of(context).colorScheme.primary),
-            title: const Text('Thème sombre'),
-            trailing: Radio<ThemeMode>(
-              value: ThemeMode.dark,
-              groupValue: themeProvider.themeMode,
-              onChanged: (ThemeMode? value) {
-                if (value != null) {
-                  themeProvider.setThemeMode(value);
-                }
-              },
-              activeColor: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          const Divider(),
-          ListTile(
-            leading: Icon(Icons.password_rounded,
-                color: Theme.of(context).colorScheme.primary),
-            title: const Text('Modifier le mot de passe'),
-            trailing: Icon(Icons.arrow_forward_ios_rounded,
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
-                size: 18),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const ChangePasswordPage()),
-              );
-            },
           ),
           // Ajoutez d'autres paramètres ici
         ],
