@@ -234,11 +234,11 @@ class _AddServiceViewState extends State<_AddServiceView> {
       }
     } catch (e) {
       if (mounted) {
-        print("Erreur lors de l\'ajout du service: $e");
+        print("Erreur lors de l'ajout du service: $e");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content:
-                  Text("Erreur lors de l\'ajout du service: ${e.toString()}"),
+                  Text("Erreur lors de l'ajout du service: ${e.toString()}"),
               backgroundColor: Colors.red),
         );
       }
@@ -340,7 +340,7 @@ class _AddServiceViewState extends State<_AddServiceView> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: _selectedCategory,
+                    initialValue: _selectedCategory,
                     decoration: _buildInputDecoration(
                       context: context,
                       label: 'Catégorie*', 
@@ -379,7 +379,7 @@ class _AddServiceViewState extends State<_AddServiceView> {
                     const Center(child: CircularProgressIndicator())
                   else
                     DropdownButtonFormField<String>(
-                      value: _selectedSubCategory,
+                      initialValue: _selectedSubCategory,
                       decoration: _buildInputDecoration(
                         context: context,
                         label: 'Sous-catégorie*', 
@@ -532,11 +532,11 @@ class _AddCategoryViewState extends State<_AddCategoryView> {
       }
     } catch (e) {
       if (mounted) {
-        print("Erreur lors de l\'ajout de la catégorie: $e");
+        print("Erreur lors de l'ajout de la catégorie: $e");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
-                  "Erreur lors de l\'ajout de la catégorie: ${e.toString()}"),
+                  "Erreur lors de l'ajout de la catégorie: ${e.toString()}"),
               backgroundColor: Colors.red),
         );
       }
@@ -589,7 +589,7 @@ class _AddCategoryViewState extends State<_AddCategoryView> {
                   ),
                   const SizedBox(height: 24),
                   DropdownButtonFormField<String>(
-                    value: _selectedCategoryForSubCategory,
+                    initialValue: _selectedCategoryForSubCategory,
                     decoration: _buildInputDecoration(
                       context: context,
                       label: 'Associer à la catégorie*', 

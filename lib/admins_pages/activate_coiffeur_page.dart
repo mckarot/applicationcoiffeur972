@@ -446,7 +446,7 @@ class _ActivateCoiffeurPageState extends State<ActivateCoiffeurPage> {
                       _isActif = value;
                     });
                   },
-                  activeColor: Theme.of(context).colorScheme.primary,
+                  activeThumbColor: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(height: 30),
                 Center(

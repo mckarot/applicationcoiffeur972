@@ -259,7 +259,7 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                value: _selectedCoiffeurId,
+                initialValue: _selectedCoiffeurId,
                 hint: const Text('Choisir un coiffeur'),
                 items: _coiffeurs.map((coiffeur) {
                   return DropdownMenuItem<String>(
@@ -365,7 +365,7 @@ class ManageAbsencesPageState extends State<ManageAbsencesPage> {
                     OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 prefixIcon: const Icon(Icons.access_time),
               ),
-              value: _selectedPeriod,
+              initialValue: _selectedPeriod,
               items: _dayPeriods.map((String value) { return DropdownMenuItem<String>(value: value, child: Text(value)); }).toList(),
               onChanged: (String? newValue) {
                 setState(() => _selectedPeriod = newValue!);
