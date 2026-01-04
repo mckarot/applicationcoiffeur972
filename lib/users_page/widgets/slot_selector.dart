@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:soifapp/models/haircut_service.dart';
+import 'package:flutter/gestures.dart';
 
 class SlotSelector extends StatelessWidget {
   final List<String> availableSlots;
@@ -47,38 +48,45 @@ class SlotSelector extends StatelessWidget {
       ));
     }
 
-    return Wrap(
-      spacing: 10.0,
-      runSpacing: 10.0,
-      children: availableSlots.map((slotStartTime) {
-        final isSelected = selectedSlot == slotStartTime;
-        String displaySlot = slotStartTime;
-        if (selectedService != null) {
-          try {
-            final format = DateFormat.Hm('fr_FR');
-            final start = format.parse(slotStartTime);
-            final end = start.add(selectedService!.duration);
-            displaySlot = '${format.format(start)} - ${format.format(end)}';
-          } catch (e) {/* Garder slotStartTime si erreur */}
-        }
-        return ChoiceChip(
-          label: Text(displaySlot,
-              style: TextStyle(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.onPrimary
-                      : Theme.of(context).colorScheme.primary)),
-          selected: isSelected,
-          selectedColor: Theme.of(context).colorScheme.primary,
-          backgroundColor:
-              Theme.of(context).colorScheme.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8.0),
-              side: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant)),
-          onSelected: (bool selected) =>
-              onSlotSelected(selected ? slotStartTime : null),
-        );
-      }).toList(),
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: { PointerDeviceKind.touch, PointerDeviceKind.mouse },
+      ),
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 10.0,
+          runSpacing: 10.0,
+          children: availableSlots.map((slotStartTime) {
+            final isSelected = selectedSlot == slotStartTime;
+            String displaySlot = slotStartTime;
+            if (selectedService != null) {
+              try {
+                final format = DateFormat.Hm('fr_FR');
+                final start = format.parse(slotStartTime);
+                final end = start.add(selectedService!.duration);
+                displaySlot = '${format.format(start)} - ${format.format(end)}';
+              } catch (e) {/* Garder slotStartTime si erreur */}
+            }
+            return ChoiceChip(
+              label: Text(displaySlot,
+                  style: TextStyle(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Theme.of(context).colorScheme.primary)),
+              selected: isSelected,
+              selectedColor: Theme.of(context).colorScheme.primary,
+              backgroundColor:
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  side: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant)),
+              onSelected: (bool selected) =>
+                  onSlotSelected(selected ? slotStartTime : null),
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 }
