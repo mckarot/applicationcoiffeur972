@@ -9,6 +9,7 @@ import 'package:soifapp/admins_pages/admin_manage_services_page.dart'; // Import
 import 'package:soifapp/admins_pages/admin_delete_coiffeur_page.dart';
 import 'package:soifapp/admins_pages/manage_absences_page.dart'; // Importer la page de gestion des absences
 import 'package:soifapp/admins_pages/sign_up_page.dart';
+import 'package:soifapp/admins_pages/admin_dashboard_page.dart'; // Importer la nouvelle page de tableau de bord
 import 'package:soifapp/widgets/logout_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -137,12 +138,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
       children: [
         _buildActionCard(
             context: context,
-            icon: Icons.person_add_alt_1_outlined,
-            title: 'Créer Utilisateur',
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (context) => const SignUpPage()))),
-        _buildActionCard(
-            context: context,
             icon: Icons.group_add_outlined,
             title: 'Gérer les coiffeurs',
             onTap: () => Navigator.push(
@@ -157,60 +152,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => const ManageAbsencesPage()))),
-        _buildActionCard(
-            context: context,
-            icon: Icons.person_remove_outlined,
-            title: 'Supprimer Coiffeur',
-            iconColor: Colors.red,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AdminDeleteCoiffeurPage()))),
-        // --- Section Prestations ---
-        _buildActionCard(
-            context: context,
-            icon: Icons.add_shopping_cart_outlined,
-            title: 'Ajouter Prestation',
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AddHaircutServicePage()))),
-        _buildActionCard(
-            context: context,
-            icon: Icons.edit_note_outlined,
-            title: 'Modifier Prestation',
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AdminEditServicePage()))),
-        _buildActionCard(
-            context: context,
-            icon: Icons.list_alt_outlined,
-            title: 'Supprimer Prestation',
-            iconColor: Colors.orange[800],
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AdminManageServicesPage()))),
-        // --- Section Catégories ---
-        _buildActionCard(
-            context: context,
-            icon: Icons.edit_attributes_outlined,
-            title: 'Modifier Catégorie',
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AdminEditSubCategoryPage()))),
-        _buildActionCard(
-            context: context,
-            icon: Icons.delete_sweep_outlined,
-            title: 'Supprimer Catégories',
-            iconColor: Colors.redAccent,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AdminDeleteSubCategoryPage()))),
-        // Placeholder pour garder la grille alignée si besoin
       ],
     );
   }
@@ -228,32 +169,206 @@ class _AdminHomePageState extends State<AdminHomePage> {
       backgroundColor: theme.colorScheme.surface,
       body: RefreshIndicator(
         onRefresh: _fetchActiveCoiffeurs,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Text(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth > 900) {
+              return _buildDesktopLayout(context, theme);
+            } else {
+              return _buildMobileLayout(context, theme);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context, ThemeData theme) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Row(
+            children: [
+              Text(
                 'Tableau de bord',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
                 ),
               ),
-            ),
-            _buildDashboardGrid(context),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Text("Coiffeurs Actifs",
-                  style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface)),
-            ),
-            _buildActiveCoiffeursList(),
-          ],
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.dashboard),
+                onPressed: () {
+                  _showPasswordDialog();
+                },
+              ),
+            ],
+          ),
         ),
-      ),
+        _buildDashboardGrid(context),
+        const SizedBox(height: 32),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Text("Coiffeurs Actifs",
+              style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface)),
+        ),
+        _buildActiveCoiffeursList(),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout(BuildContext context, ThemeData theme) {
+    return Row(
+      children: [
+        // Panneau des actions à gauche
+        Expanded(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              elevation: 0,
+              margin: const EdgeInsets.all(8.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).dividerColor.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Tableau de bord',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.dashboard),
+                          onPressed: () {
+                            _showPasswordDialog();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildDashboardGrid(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Séparateur
+        const VerticalDivider(
+          width: 1,
+          thickness: 1,
+        ),
+        // Liste des coiffeurs à droite
+        Expanded(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              elevation: 0,
+              margin: const EdgeInsets.all(8.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).dividerColor.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text("Coiffeurs Actifs",
+                        style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface)),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: _buildActiveCoiffeursList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const String _dashboardPassword = '2610'; // Mot de passe pour accéder au tableau de bord
+
+  void _showPasswordDialog() {
+    final TextEditingController passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Accès restreint'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Veuillez entrer le mot de passe pour accéder à cette page :'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Mot de passe',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(); // Fermer la boîte de dialogue
+              },
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (passwordController.text == _dashboardPassword) {
+                  Navigator.of(dialogContext).pop(); // Fermer la boîte de dialogue
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminDashboardPage(),
+                    ),
+                  );
+                } else {
+                  // Afficher un message d'erreur
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mot de passe incorrect'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Valider'),
+            ),
+          ],
+        );
+      },
     );
   }
 
