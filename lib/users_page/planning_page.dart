@@ -264,15 +264,119 @@ class _PlanningPageState extends State<PlanningPage> {
         ),
         actions: const [LogoutButton()],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? _buildErrorWidget()
-              : _buildCalendarAndAppointments(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 900) {
+            return _buildDesktopLayout();
+          } else {
+            return _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                    ? _buildErrorWidget()
+                    : _buildCalendarAndAppointments();
+          }
+        },
+      ),
       bottomNavigationBar: ModernBottomNavBar(
         currentIndex: _currentIndex,
         onTap: _onNavBarTap,
       ),
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    final currentSelectedDay = _selectedDay ?? _focusedDay;
+    final appointmentsForSelectedDay = _getEventsForDay(currentSelectedDay);
+
+    return Row(
+      children: [
+        // Calendrier à gauche
+        Expanded(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              elevation: 0,
+              margin: const EdgeInsets.all(8.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).dividerColor.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      "Calendrier",
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildCalendar(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Séparateur
+        const VerticalDivider(
+          width: 1,
+          thickness: 1,
+        ),
+        // Liste des rendez-vous à droite
+        Expanded(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              elevation: 0,
+              margin: const EdgeInsets.all(8.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).dividerColor.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Text(
+                          "Rendez-vous",
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        Text(
+                          DateFormat.yMMMMd('fr_FR').format(currentSelectedDay),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: appointmentsForSelectedDay.isEmpty
+                        ? _buildEmptyState()
+                        : _buildAppointmentsList(appointmentsForSelectedDay),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

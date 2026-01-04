@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:soifapp/models/haircut_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:soifapp/models/sub_category.dart';
+import 'package:flutter/gestures.dart';
 
 class SelectServicePage extends StatefulWidget {
   final List<HaircutService> allServices;
@@ -224,20 +225,25 @@ class _SelectServicePageState extends State<SelectServicePage> {
       );
     }
 
-    return GridView.builder(
-      key: key,
-      padding: const EdgeInsets.all(16.0),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16.0,
-        mainAxisSpacing: 16.0,
-        childAspectRatio: 1.0,
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: { PointerDeviceKind.touch, PointerDeviceKind.mouse },
       ),
-      itemCount: relevantSubCategories.length,
-      itemBuilder: (context, index) {
-        final subCategory = relevantSubCategories[index];
-        return _buildSubCategoryCard(subCategory);
-      },
+      child: GridView.builder(
+        key: key,
+        padding: const EdgeInsets.all(16.0),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16.0,
+          mainAxisSpacing: 16.0,
+          childAspectRatio: 1.0,
+        ),
+        itemCount: relevantSubCategories.length,
+        itemBuilder: (context, index) {
+          final subCategory = relevantSubCategories[index];
+          return _buildSubCategoryCard(subCategory);
+        },
+      ),
     );
   }
 
@@ -262,82 +268,181 @@ class _SelectServicePageState extends State<SelectServicePage> {
       ),
       body: RefreshIndicator(
         onRefresh: _handleRefresh,
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12.0),
-              color: colorScheme.surfaceContainer,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: _displayCategories.map((category) {
-                  final isSelected = _selectedMainCategory == category;
-                  String text;
-                  switch (category) {
-                    case ServiceCategory.femme:
-                      text = 'Femme';
-                      break;
-                    case ServiceCategory.homme:
-                      text = 'Homme';
-                      break;
-                    case ServiceCategory.enfant:
-                      text = 'Enfant';
-                      break;
-                    case ServiceCategory.mixte:
-                      text = 'Mixte';
-                      break;
-                    case ServiceCategory.undefined:
-                      text = 'Autre';
-                  }
-                  return InkWell(
-                    onTap: () {
-                      setState(() {
-                        _selectedMainCategory = category;
-                        _selectedSubCategoryName = null;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 8.0),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? colorScheme.primary
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                      child: Text(text,
-                          style: TextStyle(
-                              color: isSelected
-                                  ? colorScheme.onPrimary
-                                  : colorScheme.onSurfaceVariant,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal)),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 350),
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: child,
-                  );
-                },
-                child: _selectedSubCategoryName == null
-                    ? _buildSubCategorySelection(
-                        key: ValueKey(_selectedMainCategory.toString()))
-                    : _buildServiceListForSubCategory(
-                        key: ValueKey(_selectedSubCategoryName)),
-              ),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth > 900) {
+              return _buildDesktopLayout(theme, colorScheme);
+            } else {
+              return _buildMobileLayout(theme, colorScheme);
+            }
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileLayout(ThemeData theme, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          color: colorScheme.surfaceContainer,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: _displayCategories.map((category) {
+              final isSelected = _selectedMainCategory == category;
+              String text;
+              switch (category) {
+                case ServiceCategory.femme:
+                  text = 'Femme';
+                  break;
+                case ServiceCategory.homme:
+                  text = 'Homme';
+                  break;
+                case ServiceCategory.enfant:
+                  text = 'Enfant';
+                  break;
+                case ServiceCategory.mixte:
+                  text = 'Mixte';
+                  break;
+                case ServiceCategory.undefined:
+                  text = 'Autre';
+              }
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedMainCategory = category;
+                    _selectedSubCategoryName = null;
+                  });
+                },
+                borderRadius: BorderRadius.circular(8.0),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 8.0),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? colorScheme.primary
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  child: Text(text,
+                      style: TextStyle(
+                          color: isSelected
+                              ? colorScheme.onPrimary
+                              : colorScheme.onSurfaceVariant,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal)),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+            child: _selectedSubCategoryName == null
+                ? _buildSubCategorySelection(
+                    key: ValueKey(_selectedMainCategory.toString()))
+                : _buildServiceListForSubCategory(
+                    key: ValueKey(_selectedSubCategoryName)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout(ThemeData theme, ColorScheme colorScheme) {
+    return Row(
+      children: [
+        // Panneau des catégories à gauche
+        Container(
+          width: 200,
+          color: colorScheme.surfaceContainer,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: { PointerDeviceKind.touch, PointerDeviceKind.mouse },
+            ),
+            child: ListView(
+              children: _displayCategories.map((category) {
+                final isSelected = _selectedMainCategory == category;
+                String text;
+                switch (category) {
+                  case ServiceCategory.femme:
+                    text = 'Femme';
+                    break;
+                  case ServiceCategory.homme:
+                    text = 'Homme';
+                    break;
+                  case ServiceCategory.enfant:
+                    text = 'Enfant';
+                    break;
+                  case ServiceCategory.mixte:
+                    text = 'Mixte';
+                    break;
+                  case ServiceCategory.undefined:
+                    text = 'Autre';
+                }
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedMainCategory = category;
+                      _selectedSubCategoryName = null;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 16.0),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? colorScheme.primary
+                          : Colors.transparent,
+                    ),
+                    child: Text(text,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: isSelected
+                                ? colorScheme.onPrimary
+                                : colorScheme.onSurfaceVariant,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        // Séparateur
+        const VerticalDivider(
+          width: 1,
+          thickness: 1,
+        ),
+        // Contenu principal à droite
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+            child: _selectedSubCategoryName == null
+                ? _buildSubCategorySelection(
+                    key: ValueKey(_selectedMainCategory.toString()))
+                : _buildServiceListForSubCategory(
+                    key: ValueKey(_selectedSubCategoryName)),
+          ),
+        ),
+      ],
     );
   }
 
@@ -358,66 +463,71 @@ class _SelectServicePageState extends State<SelectServicePage> {
           child: Text('Aucun service pour cette sous-catégorie.'));
     }
 
-    return ListView.builder(
-      key: key,
-      padding: const EdgeInsets.all(16.0),
-      itemCount: servicesToList.length,
-      itemBuilder: (context, index) {
-        final service = servicesToList[index];
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(vertical: 8.0),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () {
-              Navigator.pop(context, service);
-            },
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 100,
-                  height: 100,
-                  child: _buildServiceImage(service, context),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          service.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${service.price.toStringAsFixed(2)} € - ${service.duration.inMinutes} min',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.secondary,
-                            fontSize: 14,
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: { PointerDeviceKind.touch, PointerDeviceKind.mouse },
+      ),
+      child: ListView.builder(
+        key: key,
+        padding: const EdgeInsets.all(16.0),
+        itemCount: servicesToList.length,
+        itemBuilder: (context, index) {
+          final service = servicesToList[index];
+          return Card(
+            elevation: 2,
+            margin: const EdgeInsets.symmetric(vertical: 8.0),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                Navigator.pop(context, service);
+              },
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: _buildServiceImage(service, context),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            service.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            '${service.price.toStringAsFixed(2)} € - ${service.duration.inMinutes} min',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.secondary,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-                const SizedBox(width: 16),
-              ],
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                  const SizedBox(width: 16),
+                ],
+              ),
             ),
-          ),
-        ).animate().fadeIn(delay: (100 * index).ms).slideX(begin: 0.2);
-      },
+          ).animate().fadeIn(delay: (100 * index).ms).slideX(begin: 0.2);
+        },
+      ),
     );
   }
 }
