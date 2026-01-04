@@ -28,38 +28,17 @@ class _AuthPageState extends State<AuthPage> {
   @override
   void initState() {
     super.initState();
-    // Écoute les changements d'état d'authentification de Firebase
     _auth.authStateChanges().listen((User? user) async {
       if (user != null) {
-        // L'utilisateur est connecté, récupérons son rôle depuis Firestore
         try {
           final docSnapshot =
               await _firestore.collection('users').doc(user.uid).get();
-
           if (!mounted) return;
-
           if (docSnapshot.exists) {
             final data = docSnapshot.data();
-            final role =
-                data?['role'] ?? 'client'; // 'client' est le rôle par défaut
-
-            // Redirection en fonction du rôle
-            if (role == 'client') {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const BookingPage()),
-              );
-            } else if (role == 'coiffeur') {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                    builder: (context) => const CoiffeurHomePage()),
-              );
-            } else if (role == 'admin') {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const AdminHomePage()),
-              );
-            }
+            final role = data?['role'] ?? 'client';
+            _redirectUser(role);
           } else {
-            // Le document utilisateur n'existe pas encore.
             debugPrint("Document utilisateur non trouvé pour l'UID: ${user.uid}");
           }
         } catch (e) {
@@ -69,44 +48,53 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  void _redirectUser(String role) {
+    if (!mounted) return;
+    Widget page;
+    switch (role) {
+      case 'coiffeur':
+        page = const CoiffeurHomePage();
+        break;
+      case 'admin':
+        page = const AdminHomePage();
+        break;
+      case 'client':
+      default:
+        page = const BookingPage();
+        break;
+    }
+    Navigator.of(context)
+        .pushReplacement(MaterialPageRoute(builder: (context) => page));
+  }
+
   Future<void> _performLogin() async {
     if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
       try {
-        // La connexion avec Firebase Auth
         await _auth.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
-
-        // La navigation est gérée par le listener authStateChanges, donc pas besoin de code ici.
       } on FirebaseAuthException catch (e) {
-        if (mounted) {
-          String errorMessage = 'Une erreur de connexion est survenue.';
-          if (e.code == 'user-not-found' ||
-              e.code == 'wrong-password' ||
-              e.code == 'invalid-credential') {
-            errorMessage = 'Email ou mot de passe incorrect.';
-          } else if (e.code == 'invalid-email') {
-            errorMessage = 'Le format de l\'email est invalide.';
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage)),
-          );
+        if (!mounted) return;
+        String errorMessage = 'Une erreur de connexion est survenue.';
+        if (e.code == 'user-not-found' ||
+            e.code == 'wrong-password' ||
+            e.code == 'invalid-credential') {
+          errorMessage = 'Email ou mot de passe incorrect.';
+        } else if (e.code == 'invalid-email') {
+          errorMessage = 'Le format de l\'email est invalide.';
         }
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(errorMessage)));
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Une erreur inattendue est survenue: $e')),
-          );
+              SnackBar(content: Text('Une erreur inattendue est survenue: $e')));
         }
       } finally {
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
+          setState(() => _isLoading = false);
         }
       }
     }
@@ -120,15 +108,14 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   Future<void> _forgotPassword() async {
-    // Utiliser un contrôleur local pour le dialogue
     final emailDialogController = TextEditingController();
     final dialogFormKey = GlobalKey<FormState>();
-
     return showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('Réinitialiser le mot de passe'),
           content: Form(
             key: dialogFormKey,
@@ -139,12 +126,10 @@ class _AuthPageState extends State<AuthPage> {
                 hintText: 'vous@exemple.com',
               ),
               keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (value == null || value.isEmpty || !value.contains('@')) {
-                  return 'Veuillez entrer un email valide';
-                }
-                return null;
-              },
+              validator: (value) =>
+                  (value == null || value.isEmpty || !value.contains('@'))
+                      ? 'Veuillez entrer un email valide'
+                      : null,
             ),
           ),
           actions: <Widget>[
@@ -161,17 +146,12 @@ class _AuthPageState extends State<AuthPage> {
                         email: emailDialogController.text.trim());
                     if (!mounted) return;
                     Navigator.of(dialogContext).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content:
-                              Text('Un lien de réinitialisation a été envoyé.')),
-                    );
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content:
+                            Text('Un lien de réinitialisation a été envoyé.')));
                   } on FirebaseAuthException catch (e) {
-                    // Gérer les erreurs spécifiques si nécessaire
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(e.message ?? "Une erreur est survenue.")),
-                    );
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(e.message ?? "Une erreur est survenue.")));
                   }
                 }
               },
@@ -182,37 +162,11 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  Future<void> _launchURL(String urlString) async {
-    final Uri url = Uri.parse(urlString);
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Impossible d\'ouvrir le lien : $urlString')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); // Obtenir le thème pour un style cohérent
-    final inputDecoration = InputDecoration(
-      filled: true,
-      fillColor: theme.colorScheme.surface.withOpacity(0.5),
-      border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide.none),
-      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-      prefixIconColor: theme.colorScheme.primary,
-      // Style d'erreur un peu moins agressif
-      errorStyle: TextStyle(color: theme.colorScheme.error.withOpacity(0.85)),
-    );
-
+    final theme = Theme.of(context);
     return Scaffold(
-      // Pas d'AppBar pour un look plus immersif. Le contenu est protégé par SafeArea.
       body: Container(
-        // Arrière-plan en dégradé pour une touche de modernité
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -224,181 +178,200 @@ class _AuthPageState extends State<AuthPage> {
           ),
         ),
         child: Center(
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Icon(
-                      Icons.content_cut,
-                      size: 80,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Bienvenue',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Connectez-vous pour continuer',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: inputDecoration.copyWith(
-                        labelText: 'Email',
-                        prefixIcon: const Icon(Icons.email_outlined),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null ||
-                            value.isEmpty ||
-                            !value.contains('@')) {
-                          return 'Veuillez entrer un email valide';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: inputDecoration.copyWith(
-                        labelText: 'Mot de passe',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _isPasswordVisible
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                            color: theme.colorScheme.primary.withOpacity(0.7),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _isPasswordVisible = !_isPasswordVisible;
-                            });
-                          },
-                        ),
-                      ),
-                      obscureText: !_isPasswordVisible,
-                      validator: (value) {
-                        if (value == null ||
-                            value.isEmpty ||
-                            value.length < 6) {
-                          return 'Le mot de passe doit faire au moins 6 caractères';
-                        }
-                        return null;
-                      },
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _forgotPassword,
-                        child: Text('Mot de passe oublié ?',
-                            style: TextStyle(
-                                color: theme.colorScheme.primary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500)),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.primary,
-                                foregroundColor: theme.colorScheme.onPrimary,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12.0)),
-                                textStyle: theme.textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.bold)),
-                            onPressed: _performLogin,
-                            child: const Text('Se connecter'),
-                          ),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text("Pas encore de compte ?",
-                            style: theme.textTheme.bodyMedium),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                  builder: (context) =>
-                                      const UsersSignUpPage()),
-                            );
-                          },
-                          child: Text(
-                            "S'inscrire",
-                            style: TextStyle(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text.rich(
-                        TextSpan(
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant
-                                .withOpacity(0.7),
-                            fontSize: 12,
-                          ),
-                          children: [
-                            const TextSpan(
-                                text: 'En continuant, vous acceptez notre '),
-                            TextSpan(
-                              text: 'Politique de confidentialité',
-                              style: TextStyle(
-                                color: theme.colorScheme.primary,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () => _launchURL(
-                                    'https://coiffure-salon.web.app/politique-de-confidentialite.html'),
-                            ),
-                            const TextSpan(text: ' et nos '),
-                            TextSpan(
-                              text: 'Conditions d\'utilisation',
-                              style: TextStyle(
-                                color: theme.colorScheme.primary,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () => _launchURL(
-                                    'https://coiffure-salon.web.app/conditions-d-utilisation.html'),
-                            ),
-                            const TextSpan(text: '.'),
-                          ],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Si l'écran est large, on contraint la largeur du formulaire
+              if (constraints.maxWidth > 600) {
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 450),
+                    child: _buildAuthForm(),
+                  ),
+                );
+              } else {
+                // Sur mobile, on prend la largeur disponible
+                return _buildAuthForm();
+              }
+            },
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAuthForm() {
+    final theme = Theme.of(context);
+    final inputDecoration = InputDecoration(
+      filled: true,
+      fillColor: theme.colorScheme.surface.withOpacity(0.5),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12.0),
+          borderSide: BorderSide.none),
+      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+      prefixIconColor: theme.colorScheme.primary,
+      errorStyle: TextStyle(color: theme.colorScheme.error.withOpacity(0.85)),
+    );
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Icon(Icons.content_cut,
+                  size: 80, color: theme.colorScheme.primary),
+              const SizedBox(height: 16),
+              Text(
+                'Bienvenue',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Connectez-vous pour continuer',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 48),
+              TextFormField(
+                controller: _emailController,
+                decoration: inputDecoration.copyWith(
+                  labelText: 'Email',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) =>
+                    (value == null || value.isEmpty || !value.contains('@'))
+                        ? 'Veuillez entrer un email valide'
+                        : null,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _passwordController,
+                decoration: inputDecoration.copyWith(
+                  labelText: 'Mot de passe',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: theme.colorScheme.primary.withOpacity(0.7)),
+                    onPressed: () =>
+                        setState(() => _isPasswordVisible = !_isPasswordVisible),
+                  ),
+                ),
+                obscureText: !_isPasswordVisible,
+                validator: (value) =>
+                    (value == null || value.isEmpty || value.length < 6)
+                        ? 'Le mot de passe doit faire au moins 6 caractères'
+                        : null,
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _forgotPassword,
+                  child: Text('Mot de passe oublié ?',
+                      style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.0)),
+                          textStyle: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      onPressed: _performLogin,
+                      child: const Text('Se connecter'),
+                    ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("Pas encore de compte ?",
+                      style: theme.textTheme.bodyMedium),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (context) => const UsersSignUpPage())),
+                    child: Text("S'inscrire",
+                        style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: _buildLegalText(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Impossible d\'ouvrir le lien : $urlString')));
+      }
+    }
+  }
+
+  Widget _buildLegalText(BuildContext context) {
+    final theme = Theme.of(context);
+    final linkStyle = TextStyle(
+      color: theme.colorScheme.primary,
+      decoration: TextDecoration.underline,
+    );
+    return Text.rich(
+      TextSpan(
+        style: TextStyle(
+          color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+          fontSize: 12,
+        ),
+        children: [
+          const TextSpan(text: 'En continuant, vous acceptez notre '),
+          TextSpan(
+            text: 'Politique de confidentialité',
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => _launchURL(
+                  'https://coiffure-salon.web.app/politique-de-confidentialite.html'),
+          ),
+          const TextSpan(text: ' et nos '),
+          TextSpan(
+            text: 'Conditions d\'utilisation',
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => _launchURL(
+                  'https://coiffure-salon.web.app/conditions-d-utilisation.html'),
+          ),
+          const TextSpan(text: '.'),
+        ],
+      ),
+      textAlign: TextAlign.center,
     );
   }
 }
