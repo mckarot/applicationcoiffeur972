@@ -494,101 +494,110 @@ class _BookingPageState extends State<BookingPage> {
           child: Text('Aucun coiffeur disponible pour le moment.'));
     }
 
-    return SizedBox(
-      height: 120,
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(
-          dragDevices: { PointerDeviceKind.touch, PointerDeviceKind.mouse },
-        ),
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: _coiffeurs.length,
-          itemBuilder: (context, index) {
-            final coiffeur = _coiffeurs[index];
-            final isSelected = _selectedCoiffeurId == coiffeur.id;
-            return GestureDetector(
-              onTap: () async {
-                final selectedId = await Navigator.push<String>(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) =>
-                          CoiffeurDetailsPage(coiffeur: coiffeur)),
-                );
-                if (selectedId != null && mounted) {
-                  setState(() {
-                    _selectedCoiffeurId = selectedId;
-                    _selectedCreneau = null;
-                  });
-                  _fetchAvailableSlots();
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Hero(
-                      tag: 'coiffeur-photo-${coiffeur.id}',
-                      child: Container(
-                        padding: const EdgeInsets.all(3.0),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: isSelected
-                              ? Border.all(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  width: 2.5)
-                              : Border.all(color: Colors.transparent, width: 2.5),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Adjust height based on screen size
+        double height = constraints.maxWidth < 600 ? 100 : 120;
+        double radius = constraints.maxWidth < 600 ? 25 : 35; // Smaller avatars on mobile
+        double fontSize = constraints.maxWidth < 600 ? 11 : 13; // Smaller text on mobile
+
+        return SizedBox(
+          height: height,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: { PointerDeviceKind.touch, PointerDeviceKind.mouse },
+            ),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _coiffeurs.length,
+              itemBuilder: (context, index) {
+                final coiffeur = _coiffeurs[index];
+                final isSelected = _selectedCoiffeurId == coiffeur.id;
+                return GestureDetector(
+                  onTap: () async {
+                    final selectedId = await Navigator.push<String>(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) =>
+                              CoiffeurDetailsPage(coiffeur: coiffeur)),
+                    );
+                    if (selectedId != null && mounted) {
+                      setState(() {
+                        _selectedCoiffeurId = selectedId;
+                        _selectedCreneau = null;
+                      });
+                      _fetchAvailableSlots();
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Hero(
+                          tag: 'coiffeur-photo-${coiffeur.id}',
+                          child: Container(
+                            padding: const EdgeInsets.all(3.0),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: isSelected
+                                  ? Border.all(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      width: 2.5)
+                                  : Border.all(color: Colors.transparent, width: 2.5),
+                            ),
+                            child: coiffeur.photoUrl != null &&
+                                    coiffeur.photoUrl!.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: coiffeur.photoUrl!,
+                                    imageBuilder: (context, imageProvider) =>
+                                        CircleAvatar(
+                                            radius: radius, backgroundImage: imageProvider),
+                                    placeholder: (context, url) =>
+                                        CircleAvatar(
+                                            radius: radius,
+                                            backgroundColor: Colors.grey,
+                                            child: SpinKitFadingCircle(
+                                                color: Colors.white, size: radius)),
+                                    errorWidget: (context, url, error) =>
+                                        CircleAvatar(
+                                            radius: radius,
+                                            backgroundColor:
+                                                coiffeur.color.withOpacity(0.8),
+                                            child: Icon(coiffeur.icon,
+                                                size: radius * 0.7, color: Colors.white)),
+                                  )
+                                : CircleAvatar(
+                                    radius: radius,
+                                    backgroundColor: coiffeur.color.withOpacity(0.8),
+                                    child: Icon(coiffeur.icon,
+                                        size: radius * 0.7, color: Colors.white)),
+                          ),
                         ),
-                        child: coiffeur.photoUrl != null &&
-                                coiffeur.photoUrl!.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: coiffeur.photoUrl!,
-                                imageBuilder: (context, imageProvider) =>
-                                    CircleAvatar(
-                                        radius: 35, backgroundImage: imageProvider),
-                                placeholder: (context, url) =>
-                                    const CircleAvatar(
-                                        radius: 35,
-                                        backgroundColor: Colors.grey,
-                                        child: SpinKitFadingCircle(
-                                            color: Colors.white, size: 30.0)),
-                                errorWidget: (context, url, error) =>
-                                    CircleAvatar(
-                                        radius: 35,
-                                        backgroundColor:
-                                            coiffeur.color.withOpacity(0.8),
-                                        child: Icon(coiffeur.icon,
-                                            size: 30, color: Colors.white)),
-                              )
-                            : CircleAvatar(
-                                radius: 35,
-                                backgroundColor: coiffeur.color.withOpacity(0.8),
-                                child: Icon(coiffeur.icon,
-                                    size: 30, color: Colors.white)),
-                      ),
+                        const SizedBox(height: 6), // Smaller spacing on mobile
+                        Text(
+                          coiffeur.name,
+                          style: TextStyle(
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).textTheme.bodyLarge?.color,
+                              fontWeight:
+                                  isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontSize: fontSize),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      coiffeur.name,
-                      style: TextStyle(
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).textTheme.bodyLarge?.color,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            )
-                .animate()
-                .fadeIn(delay: (100 * index).ms, duration: 400.ms)
-                .slideX(begin: 0.5, curve: Curves.easeOutCubic)
-                .shimmer(delay: (100 * index).ms, duration: 600.ms);
-          },
-        ),
-      ),
+                  ),
+                )
+                    .animate()
+                    .fadeIn(delay: (100 * index).ms, duration: 400.ms)
+                    .slideX(begin: 0.5, curve: Curves.easeOutCubic)
+                    .shimmer(delay: (100 * index).ms, duration: 600.ms);
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -659,34 +668,29 @@ class _BookingPageState extends State<BookingPage> {
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
       color: theme.colorScheme.surfaceContainer,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      child: Container(
-        constraints: const BoxConstraints(
-          minHeight: 200, // Hauteur minimale pour harmoniser les cartes
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                    radius: 14,
-                    child:
-                        Text(step, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(title,
-                      style: theme.textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Expanded(child: content),
-            ],
-          ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  radius: 14,
+                  child:
+                      Text(step, style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 12),
+                Text(title,
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            content,
+          ],
         ),
       ),
     ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.2);
@@ -771,72 +775,73 @@ class _BookingMobileLayout extends StatelessWidget {
     final bool isLoading =
         state._isLoadingServices || state._isLoadingSubCategories;
 
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          state._buildSectionCard(
-            context: context,
-            step: '1',
-            title: 'Choisissez une date',
-            content: DateSelector(
-              selectedDate: state._selectedDate,
-              onDateSelected: (date) {
-                state.setState(() {
-                  state._selectedDate = date;
-                  state._selectedCreneau = null;
-                });
-                state._fetchAvailableSlots();
-              },
-              onPickDateTap: state._pickDate,
-            ),
-          ),
-          state._buildSectionCard(
-            context: context,
-            step: '2',
-            title: 'Choisissez une prestation',
-            content: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : state._servicesError != null
-                    ? Center(
-                        child: Text(state._servicesError!,
-                            style:
-                                TextStyle(color: Theme.of(context).colorScheme.error)))
-                    : ServiceSelector(
-                        selectedService: state._selectedService,
-                        onTap: state._navigateToSelectServicePage,
-                      ),
-          ),
-          if (state._selectedDate != null && state._selectedService != null)
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
             state._buildSectionCard(
               context: context,
-              step: '3',
-              title: 'Choisissez un coiffeur',
-              content: state._buildCoiffeurSelector(),
-            ).animate().fadeIn(duration: 400.ms),
-          if (state._selectedDate != null &&
-              state._selectedService != null &&
-              state._selectedCoiffeurId != null)
-            state._buildSectionCard(
-              context: context,
-              step: '4',
-              title: 'Choisissez un créneau',
-              content: Center(
-                child: SlotSelector(
-                  availableSlots: state._dynamicAvailableSlots,
-                  selectedSlot: state._selectedCreneau,
-                  onSlotSelected: (slot) {
-                    state.setState(() => state._selectedCreneau = slot);
-                  },
-                  selectedService: state._selectedService,
-                  isLoading: state._isLoadingSlots,
-                  error: state._slotsError,
-                ),
+              step: '1',
+              title: 'Choisissez une date',
+              content: DateSelector(
+                selectedDate: state._selectedDate,
+                onDateSelected: (date) {
+                  state.setState(() {
+                    state._selectedDate = date;
+                    state._selectedCreneau = null;
+                  });
+                  state._fetchAvailableSlots();
+                },
+                onPickDateTap: state._pickDate,
               ),
-            ).animate().fadeIn(duration: 400.ms),
-          const SizedBox(height: 80), // Espace pour le bouton
-        ],
+            ),
+            state._buildSectionCard(
+              context: context,
+              step: '2',
+              title: 'Choisissez une prestation',
+              content: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : state._servicesError != null
+                      ? Center(
+                          child: Text(state._servicesError!,
+                              style:
+                                  TextStyle(color: Theme.of(context).colorScheme.error)))
+                      : ServiceSelector(
+                          selectedService: state._selectedService,
+                          onTap: state._navigateToSelectServicePage,
+                        ),
+            ),
+            if (state._selectedDate != null && state._selectedService != null)
+              state._buildSectionCard(
+                context: context,
+                step: '3',
+                title: 'Choisissez un coiffeur',
+                content: state._buildCoiffeurSelector(),
+              ).animate().fadeIn(duration: 400.ms),
+            if (state._selectedDate != null &&
+                state._selectedService != null &&
+                state._selectedCoiffeurId != null)
+              state._buildSectionCard(
+                context: context,
+                step: '4',
+                title: 'Choisissez un créneau',
+                content: Center(
+                  child: SlotSelector(
+                    availableSlots: state._dynamicAvailableSlots,
+                    selectedSlot: state._selectedCreneau,
+                    onSlotSelected: (slot) {
+                      state.setState(() => state._selectedCreneau = slot);
+                    },
+                    selectedService: state._selectedService,
+                    isLoading: state._isLoadingSlots,
+                    error: state._slotsError,
+                  ),
+                ),
+              ).animate().fadeIn(duration: 400.ms),
+          ],
+        ),
       ),
     );
   }
@@ -937,8 +942,6 @@ class _BookingDesktopLayout extends StatelessWidget {
       constraints: const BoxConstraints(
         minWidth: 400, // Largeur fixe pour chaque carte
         maxWidth: 400, // Même largeur maximale pour uniformité
-        minHeight: 300, // Hauteur minimale pour chaque carte
-        maxHeight: 600, // Hauteur maximale pour chaque carte
       ),
       child: child,
     );
@@ -949,8 +952,6 @@ class _BookingDesktopLayout extends StatelessWidget {
       constraints: const BoxConstraints(
         minWidth: 500, // Largeur plus grande pour la carte des créneaux horaires
         maxWidth: 500, // Même largeur maximale pour uniformité
-        minHeight: 300, // Hauteur minimale pour chaque carte
-        maxHeight: 600, // Hauteur maximale pour chaque carte
       ),
       child: child,
     );

@@ -262,9 +262,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                       ],
                     ),
                   ),
-                  Expanded(
-                    child: _buildDashboardGrid(context),
-                  ),
+                  _buildDashboardGrid(context),
                 ],
               ),
             ),
@@ -300,9 +298,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                             color: theme.colorScheme.onSurface)),
                   ),
                   const SizedBox(height: 8),
-                  Expanded(
-                    child: _buildActiveCoiffeursList(),
-                  ),
+                  _buildActiveCoiffeursList(),
                 ],
               ),
             ),
